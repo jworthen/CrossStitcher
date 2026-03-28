@@ -369,5 +369,4 @@ export const DMC_COLORS: DmcColor[] = [
   { number: '646', name: 'Beaver Gray Dark', hex: '#808078' },
   { number: '645', name: 'Beaver Gray Very Dark', hex: '#606058' },
   { number: '844', name: 'Beaver Gray Ultra Dark', hex: '#404038' },
-  { number: '3UFO', name: 'UFO Green', hex: '#00FF80' },
 ];
