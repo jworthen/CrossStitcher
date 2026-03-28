@@ -8,9 +8,14 @@ pluginManagement {
   if(reactNativeMinor == 74 && reactNativePatch <= 3){
     includeBuild("react-settings-plugin")
   }
+
+  includeBuild(new File(["node", "--print", "require.resolve('expo-modules-autolinking/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/android")
 }
 
-plugins { id("com.facebook.react.settings") }
+plugins {
+  id("com.facebook.react.settings")
+  id("expo.modules.autolinking")
+}
 
 def getRNMinorVersion() {
   def version = providers.exec {
@@ -54,7 +59,6 @@ dependencyResolutionManagement {
   }
 }
 
-apply from: new File(["node", "--print", "require.resolve('expo/package.json')"].execute(null, rootDir).text.trim(), "../scripts/autolinking.gradle");
 useExpoModules()
 
 if (getRNMinorVersion() < 75) {
