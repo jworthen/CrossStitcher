@@ -57,7 +57,7 @@ export function FlossListScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>DMC Floss</Text>
         <Text style={styles.subtitle}>
-          {counts.inStock + counts.low}/{counts.total} owned &middot; {counts.low} low
+          {counts.inStock + counts.low}/{counts.total} owned · {counts.low} low
         </Text>
       </View>
 
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingBottom: 8,
-    gap: 8,
+    columnGap: 8,
   },
   tab: {
     paddingHorizontal: 14,
