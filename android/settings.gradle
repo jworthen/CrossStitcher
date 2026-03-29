@@ -40,4 +40,3 @@ rootProject.name = 'CrossStitcher'
 expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
-includeBuild(expoAutolinking.reactNativeGradlePlugin)
