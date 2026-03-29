@@ -19,16 +19,26 @@
 - [ ] Dark mode support
 - [ ] Export inventory as CSV or JSON
 
-## Phase 3 — Pattern Integration
-- [ ] Manual pattern entry (paste a list of DMC numbers)
-- [ ] Import color list from file (CSV or plain text)
-- [ ] Cross-reference pattern requirements against your inventory
-- [ ] Shopping list view: what you need to buy for a specific pattern
-- [ ] Pattern Keeper compatibility: import exported color lists
+## Phase 3 — PDF Pattern Viewer
+The core differentiator. Pattern Keeper does not support PDF import.
 
-## Phase 4 — Extended Features
-- [ ] Track multiple patterns simultaneously
-- [ ] "What patterns can I start right now?" based on current stock
-- [ ] Cloud backup / sync across devices
-- [ ] Share shopping list
-- [ ] Notes per color (e.g., brand, where purchased)
+- [ ] Import a PDF pattern from device storage or photos
+- [ ] Render the PDF as a zoomable, pannable image
+- [ ] User sets grid dimensions (stitch count wide × tall) to overlay an interactive grid
+- [ ] Tap squares to mark them as complete (toggle)
+- [ ] Track overall % complete
+- [ ] Per-color progress: how many stitches of each DMC color are done vs remaining
+- [ ] Save progress per pattern (multiple patterns supported)
+- [ ] Auto-detect grid lines from the PDF image (stretch goal)
+
+## Phase 4 — Inventory + Pattern Integration
+- [ ] Extract the DMC color list from a pattern (manual entry or parsed from PDF legend)
+- [ ] Cross-reference pattern color requirements against your inventory
+- [ ] Shopping list: what you need to buy before starting a pattern
+- [ ] "Can I start this?" — instant answer based on current stock
+- [ ] Mark shopping list items as bought → auto-update inventory
+
+## Phase 5 — Sync & Extras
+- [ ] Cloud backup / sync inventory and patterns across devices
+- [ ] Share shopping list or pattern progress
+- [ ] Notes per color (brand, where purchased, substitute colors)
