@@ -22,14 +22,21 @@
 ## Phase 3 — PDF Pattern Viewer
 The core differentiator. Pattern Keeper does not support PDF import.
 
-- [ ] Import a PDF pattern from device storage or photos
+**Scope:** Digital PDFs only (e.g. purchased patterns from Etsy, designer websites). Scanned/photographed patterns are out of scope — digital PDFs have mathematically perfect, consistent grids which makes reliable grid detection possible.
+
+**Grid setup:**
+- [ ] Import a digital PDF pattern from device storage
 - [ ] Render the PDF as a zoomable, pannable image
-- [ ] User sets grid dimensions (stitch count wide × tall) to overlay an interactive grid
-- [ ] Tap squares to mark them as complete (toggle)
+- [ ] User zooms in and outlines a single stitch square by tapping two opposite corners
+- [ ] App extrapolates cell size and origin from that one square and tiles the grid across the entire pattern
+- [ ] User enters stitch count (width × height), or app estimates it by dividing image dimensions by cell size
+- [ ] Grid overlay renders on top of the pattern
+
+**Tracking:**
+- [ ] Tap a square to mark it complete (toggle)
 - [ ] Track overall % complete
-- [ ] Per-color progress: how many stitches of each DMC color are done vs remaining
+- [ ] Per-color progress: stitches done vs remaining per DMC color
 - [ ] Save progress per pattern (multiple patterns supported)
-- [ ] Auto-detect grid lines from the PDF image (stretch goal)
 
 ## Phase 4 — Inventory + Pattern Integration
 - [ ] Extract the DMC color list from a pattern (manual entry or parsed from PDF legend)
