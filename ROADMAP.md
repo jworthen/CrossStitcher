@@ -10,8 +10,11 @@
 - State persisted locally via AsyncStorage
 
 ## Phase 2 — UX Polish
-- [ ] Group colors by color family (reds, blues, neutrals, etc.)
-- [ ] Bulk actions (e.g., mark a whole color family as owned)
+- [ ] Sort/group toggle: switch between numerical order and color family grouping
+- [ ] Bulk actions on current view:
+  - Mark all visible colors as owned/low/unowned (works with active search or filter)
+  - "I went shopping" — clear all Low → In Stock in one tap
+  - Reset all — wipe inventory back to unowned
 - [ ] Haptic feedback on status toggle
 - [ ] Dark mode support
 - [ ] Export inventory as CSV or JSON
