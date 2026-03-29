@@ -49,3 +49,14 @@ The core differentiator. Pattern Keeper does not support PDF import.
 - [ ] Cloud backup / sync inventory and patterns across devices
 - [ ] Share shopping list or pattern progress
 - [ ] Notes per color (brand, where purchased, substitute colors)
+
+## Phase 6 — Community (Nice to Have)
+Requires a backend and user accounts.
+
+- [ ] User profiles
+- [ ] Upload and share progress photos (WIP shots)
+- [ ] Follow other stitchers
+- [ ] Like and comment on progress photos
+- [ ] Forums / discussion boards by topic (patterns, techniques, brands)
+- [ ] Pattern recommendations from the community
+- [ ] Finished object (FO) gallery — show off completed projects
