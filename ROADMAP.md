@@ -52,7 +52,13 @@ The core differentiator. Pattern Keeper does not support PDF import.
 - [ ] Share shopping list or pattern progress
 - [ ] Notes per color (brand, where purchased, substitute colors)
 
-## Phase 6 — Community (Nice to Have)
+## Phase 6 — Multi-Brand Thread Support
+- [ ] Add inventory support for other popular brands: Anchor, J&P Coats, Madeira, Cosmo, Weeks Dye Works, The Gentle Art
+- [ ] Cross-brand conversion charts (e.g. DMC 321 ↔ Anchor 9046)
+- [ ] User can set a preferred brand per pattern or globally
+- [ ] Patterns that list multiple brand codes show all equivalents
+
+## Phase 7 — Community (Nice to Have)
 Requires a backend and user accounts.
 
 - [ ] User profiles
