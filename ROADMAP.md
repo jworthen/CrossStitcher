@@ -32,6 +32,9 @@ The core differentiator. Pattern Keeper does not support PDF import.
 - [ ] User enters stitch count (width × height), or app estimates it by dividing image dimensions by cell size
 - [ ] Grid overlay renders on top of the pattern
 
+**Color list:**
+- [ ] Extract the DMC color list from the pattern (manual entry or parsed from PDF legend)
+
 **Tracking:**
 - [ ] Tap a square to mark it complete (toggle)
 - [ ] Track overall % complete
@@ -39,7 +42,6 @@ The core differentiator. Pattern Keeper does not support PDF import.
 - [ ] Save progress per pattern (multiple patterns supported)
 
 ## Phase 4 — Inventory + Pattern Integration
-- [ ] Extract the DMC color list from a pattern (manual entry or parsed from PDF legend)
 - [ ] Cross-reference pattern color requirements against your inventory
 - [ ] Shopping list: what you need to buy before starting a pattern
 - [ ] "Can I start this?" — instant answer based on current stock
