@@ -5,7 +5,6 @@ buildscript {
     minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
     compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '36')
     targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
-    kotlinVersion = findProperty('android.kotlinVersion') ?: '2.0.21'
     ndkVersion = "27.1.12297006"
   }
   repositories {
@@ -13,14 +12,14 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath("com.android.tools.build:gradle:8.12.0")
-    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+    classpath("com.android.tools.build:gradle:9.1.0")
   }
 }
 
 allprojects {
   repositories {
     google()
+    gradlePluginPortal()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
   }
