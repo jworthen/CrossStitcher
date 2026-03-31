@@ -21,7 +21,7 @@ allprojects {
     google()
     gradlePluginPortal()
     mavenCentral()
-    maven { url 'https://www.jitpack.io' }
+    maven { url='https://www.jitpack.io' }
   }
 }
 
