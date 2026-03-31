@@ -48,6 +48,6 @@ providers.exec {
     workingDir(rootDir.parentFile)
     commandLine(
         "node",
-        new File(rootDir.parentFile, "scripts/patch-async-storage.js").absolutePath
+        "${rootDir.parentFile.absolutePath}/scripts/patch-async-storage.js"
     )
 }.standardOutput.asText.get()
