@@ -38,18 +38,16 @@ expoAutolinking.useExpoVersionCatalog()
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
 
-// Gradle 9.x fix: @react-native-async-storage/async-storage declares
-// `configurations { compileClasspath }` BEFORE `apply plugin: 'com.android.library'`,
-// which gives it a DECLARABLE role (canBeResolved=false) in Gradle 9.x.
-// AGP then can't initialize its artifact transform provider chain, causing:
+// @react-native-async-storage/async-storage declares `configurations { compileClasspath }`
+// BEFORE `apply plugin: 'com.android.library'`. With AGP 8.x + Gradle 9.x this prevents AGP
+// from properly initializing its artifact transform provider chain, causing:
 //   "Cannot query the value of this provider because it has no value available"
-// This hook intercepts creation of any configuration named 'compileClasspath'
-// that wasn't created by AGP (i.e. canBeResolved is false) and forces it resolvable.
-gradle.beforeProject { project ->
-    project.configurations.whenObjectAdded { config ->
-        if (config.name == 'compileClasspath' && !config.canBeResolved) {
-            config.canBeResolved = true
-            config.canBeConsumed = false
-        }
-    }
-}
+// Run the patch script here (settings-phase, before any project is configured) so it applies
+// whether or not the user has run `npm install` since the last pull.
+providers.exec {
+    workingDir(rootDir.parentFile)
+    commandLine(
+        "node",
+        new File(rootDir.parentFile, "scripts/patch-async-storage.js").absolutePath
+    )
+}.standardOutput.asText.get()
