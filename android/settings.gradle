@@ -37,3 +37,19 @@ expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
+
+// Gradle 9.x fix: @react-native-async-storage/async-storage declares
+// `configurations { compileClasspath }` BEFORE `apply plugin: 'com.android.library'`,
+// which gives it a DECLARABLE role (canBeResolved=false) in Gradle 9.x.
+// AGP then can't initialize its artifact transform provider chain, causing:
+//   "Cannot query the value of this provider because it has no value available"
+// This hook intercepts creation of any configuration named 'compileClasspath'
+// that wasn't created by AGP (i.e. canBeResolved is false) and forces it resolvable.
+gradle.beforeProject { project ->
+    project.configurations.whenObjectAdded { config ->
+        if (config.name == 'compileClasspath' && !config.canBeResolved) {
+            config.canBeResolved = true
+            config.canBeConsumed = false
+        }
+    }
+}
