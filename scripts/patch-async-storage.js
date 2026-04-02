@@ -32,7 +32,7 @@ if (!fs.existsSync(buildGradlePath)) {
 
 let content = fs.readFileSync(buildGradlePath, 'utf8');
 
-const problematicBlock = /^configurations\s*\{\s*\n\s*compileClasspath\s*\n\s*\}\s*\n/m;
+const problematicBlock = /^configurations\s*\{\s*\r?\n\s*compileClasspath\s*\r?\n\s*\}\s*\r?\n/m;
 
 if (problematicBlock.test(content)) {
   content = content.replace(
