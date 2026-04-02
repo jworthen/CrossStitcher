@@ -1,3 +1,11 @@
+// AGP 8.x + Gradle 9.x: artifact-transform providers for library modules don't
+// fully initialize when projects are configured on-demand, leaving providers
+// empty at task-graph calculation time and causing:
+//   "Cannot query the value of this provider because it has no value available"
+// Disable configure-on-demand here to override the --configure-on-demand flag
+// that expo CLI always passes.
+gradle.startParameter.configureOnDemand = false
+
 pluginManagement {
   def projectRoot = rootDir.parentFile
 
