@@ -25,5 +25,23 @@ allprojects {
   }
 }
 
+// Fix: some libraries (notably @react-native-async-storage/async-storage) declare
+//   configurations { compileClasspath }
+// BEFORE applying 'com.android.library'. The Groovy configurations {} DSL creates a legacy
+// configuration with canBeConsumed=true AND canBeResolved=true (all roles). Because it is
+// consumable, Gradle's attribute-matching picks it as an artifact source when resolving :app's
+// compile classpath — but its artifact-transform providers are never initialized, producing:
+//   "Cannot query the value of this provider because it has no value available"
+// Correcting canBeConsumed to false immediately after creation prevents Gradle from selecting
+// this configuration as an outgoing artifact provider, and lets AGP find the real
+// debugApiElements configuration instead.
+subprojects {
+  configurations.whenObjectAdded { config ->
+    if (config.name == 'compileClasspath' && config.canBeConsumed) {
+      config.canBeConsumed = false
+    }
+  }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
