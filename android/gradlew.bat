@@ -77,7 +77,7 @@ set CLASSPATH=
 @rem Note: --no-configure-on-demand is appended last to override the --configure-on-demand
 @rem flag that Expo CLI always passes. AGP 8.x + Gradle 9.x fail to initialize artifact-transform
 @rem providers for library modules when configure-on-demand is active.
-"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %* --no-configure-on-demand --stacktrace
+"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %* --no-configure-on-demand
 
 :end
 @rem End local scope for the variables with windows NT shell
