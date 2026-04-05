@@ -25,16 +25,31 @@ plugins {
 
 // Fix: @react-native-async-storage/async-storage 2.x declares
 //   configurations { compileClasspath }
-// BEFORE applying 'com.android.library'.  The Groovy configurations {} DSL creates a
-// legacy configuration with canBeConsumed=true, which Gradle attribute-matching then
-// selects as an artifact source when resolving :app's compile classpath.  Its
-// artifact-transform providers are never initialised, causing:
+// BEFORE applying 'com.android.library'. This creates a legacy configuration with
+// canBeConsumed=true that Gradle attribute-matching selects as an artifact source when
+// resolving :app's compile classpath. Its artifact-transform providers are never
+// initialised, causing:
 //   "Cannot query the value of this provider because it has no value available"
 //
-// addProjectEvaluationListener.beforeEvaluate fires for every project JUST BEFORE its
-// build.gradle runs, regardless of --configure-on-demand.  We register a
-// whenObjectAdded hook that immediately sets canBeConsumed=false on any compileClasspath
-// created with the wrong role, preventing Gradle from selecting it as an artifact source.
+// Most reliable fix: directly remove the block from the file before any project is
+// configured. settings.gradle is processed first, so this runs before any build.gradle.
+try {
+  def patchScript = new File(rootDir.parentFile, "scripts/patch-async-storage.js")
+  if (patchScript.exists()) {
+    def proc = new ProcessBuilder("node", patchScript.absolutePath)
+      .directory(rootDir.parentFile)
+      .redirectErrorStream(true)
+      .start()
+    def output = proc.inputStream.text
+    proc.waitFor()
+    if (output?.trim()) logger.lifecycle("[async-storage-patch] {}", output.trim())
+  }
+} catch (Exception e) {
+  logger.warn("[async-storage-patch] Could not run patch script: {}", e.message)
+}
+
+// Belt-and-suspenders: also intercept any compileClasspath configurations created
+// with canBeConsumed=true before AGP resets them to the correct role.
 gradle.addProjectEvaluationListener(new ProjectEvaluationListener() {
   void beforeEvaluate(Project p) {
     p.configurations.whenObjectAdded { config ->
@@ -46,9 +61,8 @@ gradle.addProjectEvaluationListener(new ProjectEvaluationListener() {
   void afterEvaluate(Project p, ProjectState s) {}
 })
 
-// Also disable configure-on-demand: Expo CLI always passes --configure-on-demand;
-// this overrides it so every project is configured eagerly, eliminating the
-// lazy-evaluation timing window entirely.
+// Disable configure-on-demand: Expo CLI always passes --configure-on-demand;
+// this overrides it so every project is configured eagerly.
 gradle.startParameter.configureOnDemand = false
 
 expoAutolinking.projectRoot = rootDir.parentFile
