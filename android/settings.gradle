@@ -25,27 +25,36 @@ plugins {
 
 // Fix: @react-native-async-storage/async-storage 2.x declares
 //   configurations { compileClasspath }
-// BEFORE applying 'com.android.library'. This creates a legacy configuration with
-// canBeConsumed=true that Gradle attribute-matching selects as an artifact source when
-// resolving :app's compile classpath. Its artifact-transform providers are never
-// initialised, causing:
+// BEFORE applying 'com.android.library'. Gradle selects this legacy configuration
+// (canBeConsumed=true) as an artifact source for :app's compile classpath. Its
+// artifact-transform providers are never initialised, causing:
 //   "Cannot query the value of this provider because it has no value available"
+//   at LocalFileDependencyBackedArtifactSet.visitDependencies
 //
-// Most reliable fix: directly remove the block from the file before any project is
-// configured. settings.gradle is processed first, so this runs before any build.gradle.
+// Fix: directly patch the file using Groovy/Java I/O — no external process needed,
+// so it works reliably even when 'node' is not in the Gradle daemon's PATH on Windows.
+// settings.gradle is processed before any project's build.gradle, so the patch is
+// applied before Gradle ever reads async-storage's build script.
 try {
-  def patchScript = new File(rootDir.parentFile, "scripts/patch-async-storage.js")
-  if (patchScript.exists()) {
-    def proc = new ProcessBuilder("node", patchScript.absolutePath)
-      .directory(rootDir.parentFile)
-      .redirectErrorStream(true)
-      .start()
-    def output = proc.inputStream.text
-    proc.waitFor()
-    if (output?.trim()) logger.lifecycle("[async-storage-patch] {}", output.trim())
+  def buildGradle = new File(
+    rootDir.parentFile,
+    'node_modules/@react-native-async-storage/async-storage/android/build.gradle'
+  )
+  if (buildGradle.exists()) {
+    def original = buildGradle.text
+    // Match the block whether the file uses LF or CRLF line endings.
+    def patched = original.replaceFirst(
+      /(?m)^configurations\s*\{[^}]*compileClasspath[^}]*\}\s*\r?\n/,
+      '// configurations { compileClasspath } removed by settings.gradle\n' +
+      '// Pre-declaring this before AGP breaks Gradle artifact-transform providers.\n\n'
+    )
+    if (patched != original) {
+      buildGradle.text = patched
+      logger.lifecycle('[async-storage-patch] Patched async-storage/android/build.gradle')
+    }
   }
 } catch (Exception e) {
-  logger.warn("[async-storage-patch] Could not run patch script: {}", e.message)
+  logger.warn('[async-storage-patch] {}', e.message)
 }
 
 // Belt-and-suspenders: also intercept any compileClasspath configurations created
