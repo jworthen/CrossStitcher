@@ -23,25 +23,32 @@ plugins {
   id("expo-autolinking-settings")
 }
 
-// AGP 8.x + Gradle 9.x: some libraries (e.g. @react-native-async-storage/async-storage)
-// declare `configurations { compileClasspath }` BEFORE applying 'com.android.library'.
-// The Groovy configurations {} DSL creates a legacy configuration with canBeConsumed=true,
-// so Gradle's attribute-matching selects it as an artifact source when resolving :app's
-// compile classpath.  Its artifact-transform provider chain is never initialised, producing:
+// Fix: @react-native-async-storage/async-storage 2.x declares
+//   configurations { compileClasspath }
+// BEFORE applying 'com.android.library'.  The Groovy configurations {} DSL creates a
+// legacy configuration with canBeConsumed=true, which Gradle attribute-matching then
+// selects as an artifact source when resolving :app's compile classpath.  Its
+// artifact-transform providers are never initialised, causing:
 //   "Cannot query the value of this provider because it has no value available"
 //
-// Fix: register a whenObjectAdded listener via gradle.allprojects {}, which fires for every
-// project BEFORE its build.gradle executes (regardless of --configure-on-demand).  Any
-// compileClasspath configuration created with canBeConsumed=true is immediately corrected.
-gradle.allprojects {
-  configurations.whenObjectAdded { config ->
-    if (config.name == 'compileClasspath' && config.canBeConsumed) {
-      config.canBeConsumed = false
+// addProjectEvaluationListener.beforeEvaluate fires for every project JUST BEFORE its
+// build.gradle runs, regardless of --configure-on-demand.  We register a
+// whenObjectAdded hook that immediately sets canBeConsumed=false on any compileClasspath
+// created with the wrong role, preventing Gradle from selecting it as an artifact source.
+gradle.addProjectEvaluationListener(new ProjectEvaluationListener() {
+  void beforeEvaluate(Project p) {
+    p.configurations.whenObjectAdded { config ->
+      if (config.name == 'compileClasspath' && config.canBeConsumed) {
+        config.canBeConsumed = false
+      }
     }
   }
-}
+  void afterEvaluate(Project p, ProjectState s) {}
+})
 
-// Also disable configure-on-demand as a secondary defence (belt-and-suspenders).
+// Belt-and-suspenders: also disable configure-on-demand at the startParameter level.
+// Expo CLI always passes --configure-on-demand; this overrides it so every project is
+// configured eagerly, eliminating the lazy-evaluation timing window.
 gradle.startParameter.configureOnDemand = false
 
 expoAutolinking.projectRoot = rootDir.parentFile
@@ -57,17 +64,3 @@ expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
-
-// @react-native-async-storage/async-storage declares `configurations { compileClasspath }`
-// BEFORE `apply plugin: 'com.android.library'`. With AGP 8.x + Gradle 9.x this prevents AGP
-// from properly initializing its artifact transform provider chain, causing:
-//   "Cannot query the value of this provider because it has no value available"
-// Run the patch script here (settings-phase, before any project is configured) so it applies
-// whether or not the user has run `npm install` since the last pull.
-providers.exec {
-    workingDir(rootDir.parentFile)
-    commandLine(
-        "node",
-        "${rootDir.parentFile.absolutePath}/scripts/patch-async-storage.js"
-    )
-}.standardOutput.asText.get()
