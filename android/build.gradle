@@ -3,7 +3,7 @@
 buildscript {
   ext {
     minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
-    compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '36')
+    compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
     targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
     ndkVersion = "27.1.12297006"
   }
@@ -12,7 +12,7 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath("com.android.tools.build:gradle:8.12.0")
+    classpath("com.android.tools.build:gradle:8.7.2")
   }
 }
 
