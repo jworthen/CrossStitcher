@@ -23,9 +23,32 @@ plugins {
   id("expo-autolinking-settings")
 }
 
-// Belt-and-suspenders: also disable configure-on-demand at the startParameter level.
-// Expo CLI always passes --configure-on-demand; this overrides it so every project is
-// configured eagerly, eliminating the lazy-evaluation timing window.
+// Fix: @react-native-async-storage/async-storage 2.x declares
+//   configurations { compileClasspath }
+// BEFORE applying 'com.android.library'.  The Groovy configurations {} DSL creates a
+// legacy configuration with canBeConsumed=true, which Gradle attribute-matching then
+// selects as an artifact source when resolving :app's compile classpath.  Its
+// artifact-transform providers are never initialised, causing:
+//   "Cannot query the value of this provider because it has no value available"
+//
+// addProjectEvaluationListener.beforeEvaluate fires for every project JUST BEFORE its
+// build.gradle runs, regardless of --configure-on-demand.  We register a
+// whenObjectAdded hook that immediately sets canBeConsumed=false on any compileClasspath
+// created with the wrong role, preventing Gradle from selecting it as an artifact source.
+gradle.addProjectEvaluationListener(new ProjectEvaluationListener() {
+  void beforeEvaluate(Project p) {
+    p.configurations.whenObjectAdded { config ->
+      if (config.name == 'compileClasspath' && config.canBeConsumed) {
+        config.canBeConsumed = false
+      }
+    }
+  }
+  void afterEvaluate(Project p, ProjectState s) {}
+})
+
+// Also disable configure-on-demand: Expo CLI always passes --configure-on-demand;
+// this overrides it so every project is configured eagerly, eliminating the
+// lazy-evaluation timing window entirely.
 gradle.startParameter.configureOnDemand = false
 
 expoAutolinking.projectRoot = rootDir.parentFile
