@@ -23,12 +23,25 @@ plugins {
   id("expo-autolinking-settings")
 }
 
-// AGP 8.x + Gradle 9.x: artifact-transform providers for library modules don't
-// fully initialize when projects are configured on-demand, leaving providers
-// empty at task-graph calculation time and causing:
+// AGP 8.x + Gradle 9.x: some libraries (e.g. @react-native-async-storage/async-storage)
+// declare `configurations { compileClasspath }` BEFORE applying 'com.android.library'.
+// The Groovy configurations {} DSL creates a legacy configuration with canBeConsumed=true,
+// so Gradle's attribute-matching selects it as an artifact source when resolving :app's
+// compile classpath.  Its artifact-transform provider chain is never initialised, producing:
 //   "Cannot query the value of this provider because it has no value available"
-// Disable configure-on-demand here to override the --configure-on-demand flag
-// that expo CLI always passes.
+//
+// Fix: register a whenObjectAdded listener via gradle.allprojects {}, which fires for every
+// project BEFORE its build.gradle executes (regardless of --configure-on-demand).  Any
+// compileClasspath configuration created with canBeConsumed=true is immediately corrected.
+gradle.allprojects {
+  configurations.whenObjectAdded { config ->
+    if (config.name == 'compileClasspath' && config.canBeConsumed) {
+      config.canBeConsumed = false
+    }
+  }
+}
+
+// Also disable configure-on-demand as a secondary defence (belt-and-suspenders).
 gradle.startParameter.configureOnDemand = false
 
 expoAutolinking.projectRoot = rootDir.parentFile
