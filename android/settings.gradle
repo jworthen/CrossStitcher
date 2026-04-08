@@ -23,46 +23,8 @@ plugins {
   id("expo-autolinking-settings")
 }
 
-// Fix: @react-native-async-storage/async-storage 2.x declares
-//   configurations { compileClasspath }
-// BEFORE applying 'com.android.library'. This creates a legacy configuration with
-// canBeConsumed=true that Gradle attribute-matching selects as an artifact source when
-// resolving :app's compile classpath. Its artifact-transform providers are never
-// initialised, causing:
-//   "Cannot query the value of this provider because it has no value available"
-//
-// Most reliable fix: directly remove the block from the file before any project is
-// configured. settings.gradle is processed first, so this runs before any build.gradle.
-try {
-  def patchScript = new File(rootDir.parentFile, "scripts/patch-async-storage.js")
-  if (patchScript.exists()) {
-    def proc = new ProcessBuilder("node", patchScript.absolutePath)
-      .directory(rootDir.parentFile)
-      .redirectErrorStream(true)
-      .start()
-    def output = proc.inputStream.text
-    proc.waitFor()
-    if (output?.trim()) logger.lifecycle("[async-storage-patch] {}", output.trim())
-  }
-} catch (Exception e) {
-  logger.warn("[async-storage-patch] Could not run patch script: {}", e.message)
-}
-
-// Belt-and-suspenders: also intercept any compileClasspath configurations created
-// with canBeConsumed=true before AGP resets them to the correct role.
-gradle.addProjectEvaluationListener(new ProjectEvaluationListener() {
-  void beforeEvaluate(Project p) {
-    p.configurations.whenObjectAdded { config ->
-      if (config.name == 'compileClasspath' && config.canBeConsumed) {
-        config.canBeConsumed = false
-      }
-    }
-  }
-  void afterEvaluate(Project p, ProjectState s) {}
-})
-
-// Disable configure-on-demand: Expo CLI always passes --configure-on-demand;
-// this overrides it so every project is configured eagerly.
+// Disable configure-on-demand so every project is configured eagerly.
+// Expo CLI can pass --configure-on-demand; this ensures consistent behaviour.
 gradle.startParameter.configureOnDemand = false
 
 expoAutolinking.projectRoot = rootDir.parentFile

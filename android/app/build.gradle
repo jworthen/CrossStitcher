@@ -2,13 +2,6 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-configurations.configureEach {
-    if (name == 'compileClasspath') {
-        canBeConsumed = false
-        canBeResolved = true
-    }
-}
-
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 /**
