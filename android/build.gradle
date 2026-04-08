@@ -22,6 +22,12 @@ allprojects {
     gradlePluginPortal()
     mavenCentral()
     maven { url='https://www.jitpack.io' }
+    // Local Maven repo bundled with @react-native-async-storage/async-storage v3.x,
+    // which ships storage-android AAR inside the npm package instead of publishing to
+    // a public registry.
+    maven {
+      url = file("${rootDir.parentFile}/node_modules/@react-native-async-storage/async-storage/android/local_repo")
+    }
   }
 }
 
