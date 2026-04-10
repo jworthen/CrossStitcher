@@ -60,10 +60,23 @@ if (!content.includes(LOCAL_REPO_MARKER)) {
   //       google()
   //   }
   const repoBlockPattern = /(^repositories\s*\{[^}]*\})/m;
+  // Use File(projectDir, "local_repo").toURI() for cross-platform path safety (avoids
+  // Windows backslash issues). Use mavenPom()+artifact() so Gradle reads only the POM
+  // and skips the .module file, whose "component" URL points to a missing sibling
+  // storage:1.0.0 module -- Gradle following that URL creates an unresolved provider
+  // that throws MissingValueException at task-graph time.
   const injection =
     '\n    // ' + LOCAL_REPO_MARKER + '\n' +
-    '    // storage-android:1.0.0 is bundled in the npm package, not on Maven Central\n' +
-    '    maven { url = file("${projectDir}/local_repo") }';
+    '    // storage-android:1.0.0 is bundled in the npm package, not on Maven Central.\n' +
+    '    // mavenPom()+artifact() prevents Gradle following the .module "component" URL\n' +
+    '    // to a missing sibling storage:1.0.0 module (MissingValueException fix).\n' +
+    '    maven {\n' +
+    '        url = new File(projectDir, "local_repo").toURI()\n' +
+    '        metadataSources {\n' +
+    '            mavenPom()\n' +
+    '            artifact()\n' +
+    '        }\n' +
+    '    }';
 
   if (repoBlockPattern.test(content)) {
     content = content.replace(repoBlockPattern, (match) => {
