@@ -16,7 +16,23 @@ allprojects {
   repositories {
     google()
     mavenCentral()
-    maven { url 'https://www.jitpack.io' }
+    maven { url='https://www.jitpack.io' }
+    // Local Maven repo bundled with @react-native-async-storage/async-storage v3.x,
+    // which ships storage-android AAR inside the npm package instead of publishing to
+    // a public registry.
+    //
+    // Use File(parent, child).toURI() for cross-platform path safety (Windows backslash),
+    // and mavenPom()+artifact() so Gradle uses only the POM and skips the .module file
+    // whose "component" URL points to a sibling storage:1.0.0 module that does not exist
+    // in this local repo -- Gradle following that missing URL creates an unresolved provider
+    // that throws MissingValueException at task-graph time.
+    maven {
+      url = new File(rootDir.parentFile, 'node_modules/@react-native-async-storage/async-storage/android/local_repo').toURI()
+      metadataSources {
+        mavenPom()
+        artifact()
+      }
+    }
   }
 }
 
