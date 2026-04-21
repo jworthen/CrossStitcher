@@ -13,6 +13,15 @@
  *      org.asyncstorage.shared_storage:storage-android:1.0.0
  *    The AAR is shipped inside the npm package at android/local_repo/ and is NOT
  *    published to Maven Central or Google Maven.
+ *
+ * 3. Fixes the storage-android-1.0.0.module file's broken component redirect.
+ *    The .module file contains a "component.url" pointing to
+ *    ../../storage/1.0.0/storage-1.0.0.module, which doesn't exist in local_repo.
+ *    Gradle always reads the .module file when the POM has the
+ *    "published-with-gradle-metadata" marker -- even with metadataSources{mavenPom()}.
+ *    Following the missing URL creates an unresolved provider that throws
+ *    MissingValueException at task-graph time. Fix: remove the "url" redirect so
+ *    Gradle treats storage-android as a self-contained component.
  */
 
 const fs = require('fs');
@@ -97,4 +106,41 @@ if (changed) {
   console.log('[patch-async-storage] Wrote patched build.gradle.');
 } else {
   console.log('[patch-async-storage] No changes needed.');
+}
+
+// --- Patch 3: Fix storage-android-1.0.0.module broken component redirect ---
+const moduleFilePath = path.join(
+  __dirname,
+  '..',
+  'node_modules',
+  '@react-native-async-storage',
+  'async-storage',
+  'android',
+  'local_repo',
+  'org', 'asyncstorage', 'shared_storage', 'storage-android', '1.0.0',
+  'storage-android-1.0.0.module'
+);
+
+if (!fs.existsSync(moduleFilePath)) {
+  console.log('[patch-async-storage] storage-android-1.0.0.module not found, skipping patch 3.');
+} else {
+  let moduleContent;
+  try {
+    moduleContent = JSON.parse(fs.readFileSync(moduleFilePath, 'utf8'));
+  } catch (e) {
+    console.warn('[patch-async-storage] WARNING: Could not parse storage-android-1.0.0.module, skipping patch 3.');
+    moduleContent = null;
+  }
+
+  if (moduleContent && moduleContent.component && moduleContent.component.url) {
+    // Remove the broken redirect URL and fix the component identity to match this artifact.
+    // Without "url", Gradle treats this .module file as the authoritative component
+    // description and stops trying to follow the redirect to the missing storage:1.0.0 module.
+    delete moduleContent.component.url;
+    moduleContent.component.module = 'storage-android';
+    fs.writeFileSync(moduleFilePath, JSON.stringify(moduleContent, null, 2), 'utf8');
+    console.log('[patch-async-storage] Patched: removed broken component.url from storage-android-1.0.0.module.');
+  } else {
+    console.log('[patch-async-storage] storage-android-1.0.0.module already patched or has no component.url, skipping.');
+  }
 }
