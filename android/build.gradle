@@ -1,25 +1,20 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-  ext {
-    minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
-    compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
-    targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
-    ndkVersion = "27.1.12297006"
-  }
   repositories {
     google()
     mavenCentral()
   }
   dependencies {
-    classpath("com.android.tools.build:gradle:8.7.2")
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
   }
 }
 
 allprojects {
   repositories {
     google()
-    gradlePluginPortal()
     mavenCentral()
     maven { url='https://www.jitpack.io' }
     // Local Maven repo bundled with @react-native-async-storage/async-storage v3.x,

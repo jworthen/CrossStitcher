@@ -1,20 +1,19 @@
 pluginManagement {
-  def projectRoot = rootDir.parentFile
-
-  def reactNativeGradlePlugin = file(
+  def reactNativeGradlePlugin = new File(
     providers.exec {
-      workingDir(projectRoot)
+      workingDir(rootDir)
       commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
     }.standardOutput.asText.get().trim()
   ).getParentFile().absolutePath
   includeBuild(reactNativeGradlePlugin)
-
-  def expoPluginsPath = file(
+  
+  def expoPluginsPath = new File(
     providers.exec {
-      workingDir(projectRoot)
+      workingDir(rootDir)
       commandLine("node", "--print", "require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })")
-    }.standardOutput.asText.get().trim()
-  ).parentFile.absolutePath + "/android/expo-gradle-plugin"
+    }.standardOutput.asText.get().trim(),
+    "../android/expo-gradle-plugin"
+  ).absolutePath
   includeBuild(expoPluginsPath)
 }
 
@@ -23,14 +22,12 @@ plugins {
   id("expo-autolinking-settings")
 }
 
-// Disable configure-on-demand so every project is configured eagerly.
-// Expo CLI can pass --configure-on-demand; this ensures consistent behaviour.
-gradle.startParameter.configureOnDemand = false
-
-expoAutolinking.projectRoot = rootDir.parentFile
-
 extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
-  ex.autolinkLibrariesFromCommand()
+  if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
+    ex.autolinkLibrariesFromCommand()
+  } else {
+    ex.autolinkLibrariesFromCommand(expoAutolinking.rnConfigCommand)
+  }
 }
 expoAutolinking.useExpoModules()
 
