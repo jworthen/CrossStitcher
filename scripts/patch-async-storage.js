@@ -14,14 +14,17 @@
  *    The AAR is shipped inside the npm package at android/local_repo/ and is NOT
  *    published to Maven Central or Google Maven.
  *
- * 3. Fixes the storage-android-1.0.0.module file's broken component redirect.
+ * 3. Deletes storage-android-1.0.0.module and its checksum sidecar files.
  *    The .module file contains a "component.url" pointing to
  *    ../../storage/1.0.0/storage-1.0.0.module, which doesn't exist in local_repo.
  *    Gradle always reads the .module file when the POM has the
  *    "published-with-gradle-metadata" marker -- even with metadataSources{mavenPom()}.
  *    Following the missing URL creates an unresolved provider that throws
- *    MissingValueException at task-graph time. Fix: remove the "url" redirect so
- *    Gradle treats storage-android as a self-contained component.
+ *    MissingValueException at task-graph time.
+ *    Fix: delete the .module file (and its .sha1/.sha256/.sha512/.md5 sidecars)
+ *    so Gradle falls back to the POM, which has correct <packaging>aar</packaging>
+ *    info and no broken redirect. Patching file content alone is insufficient
+ *    because the stale checksum sidecars cause Gradle to reject the modified file.
  */
 
 const fs = require('fs');
@@ -108,8 +111,20 @@ if (changed) {
   console.log('[patch-async-storage] No changes needed.');
 }
 
-// --- Patch 3: Fix storage-android-1.0.0.module broken component redirect ---
-const moduleFilePath = path.join(
+// --- Patch 3: Delete storage-android-1.0.0.module and its checksum sidecars ---
+//
+// The .module file contains a "component.url" that redirects Gradle to
+// ../../storage/1.0.0/storage-1.0.0.module -- a sibling path that does not exist
+// in local_repo.  Gradle always reads the .module file when the POM has the
+// "published-with-gradle-metadata" marker, even with metadataSources{mavenPom()}.
+// Following the missing URL creates an unresolved provider that throws
+// MissingValueException at task-graph time.
+//
+// Deleting the .module file (and its checksum sidecars) forces Gradle to use
+// only the POM, which has correct <packaging>aar</packaging> info and no redirect.
+// If we only patch the file content without also deleting the checksums, Gradle
+// detects a sha1/sha256/sha512 mismatch and rejects the patched file anyway.
+const moduleDir = path.join(
   __dirname,
   '..',
   'node_modules',
@@ -117,30 +132,29 @@ const moduleFilePath = path.join(
   'async-storage',
   'android',
   'local_repo',
-  'org', 'asyncstorage', 'shared_storage', 'storage-android', '1.0.0',
-  'storage-android-1.0.0.module'
+  'org', 'asyncstorage', 'shared_storage', 'storage-android', '1.0.0'
 );
+
+const moduleFileBase = 'storage-android-1.0.0.module';
+const moduleFilePath = path.join(moduleDir, moduleFileBase);
 
 if (!fs.existsSync(moduleFilePath)) {
   console.log('[patch-async-storage] storage-android-1.0.0.module not found, skipping patch 3.');
 } else {
-  let moduleContent;
-  try {
-    moduleContent = JSON.parse(fs.readFileSync(moduleFilePath, 'utf8'));
-  } catch (e) {
-    console.warn('[patch-async-storage] WARNING: Could not parse storage-android-1.0.0.module, skipping patch 3.');
-    moduleContent = null;
+  // Delete the .module file and all checksum sidecars so Gradle falls back to the POM.
+  const filesToDelete = [
+    moduleFileBase,
+    moduleFileBase + '.sha1',
+    moduleFileBase + '.sha256',
+    moduleFileBase + '.sha512',
+    moduleFileBase + '.md5',
+  ];
+  for (const fname of filesToDelete) {
+    const fpath = path.join(moduleDir, fname);
+    if (fs.existsSync(fpath)) {
+      fs.unlinkSync(fpath);
+      console.log('[patch-async-storage] Deleted: ' + fname);
+    }
   }
-
-  if (moduleContent && moduleContent.component && moduleContent.component.url) {
-    // Remove the broken redirect URL and fix the component identity to match this artifact.
-    // Without "url", Gradle treats this .module file as the authoritative component
-    // description and stops trying to follow the redirect to the missing storage:1.0.0 module.
-    delete moduleContent.component.url;
-    moduleContent.component.module = 'storage-android';
-    fs.writeFileSync(moduleFilePath, JSON.stringify(moduleContent, null, 2), 'utf8');
-    console.log('[patch-async-storage] Patched: removed broken component.url from storage-android-1.0.0.module.');
-  } else {
-    console.log('[patch-async-storage] storage-android-1.0.0.module already patched or has no component.url, skipping.');
-  }
+  console.log('[patch-async-storage] Patch 3 complete: Gradle will use POM instead of .module file.');
 }
