@@ -15,6 +15,14 @@
  *    published to Maven Central or Google Maven.
  *
  * 3. Deletes storage-android-1.0.0.module and its checksum sidecar files.
+ *    (Secondary safety measure; Patch 4 is the authoritative fix.)
+ *
+ * 4. Replaces `api "org.asyncstorage.shared_storage:storage-android:1.0.0"` with
+ *    a direct `files()` reference to the bundled AAR.
+ *    Even after fixing/deleting the .module file, Gradle's metadata cache retains
+ *    the broken component identity (storage-android → storage [not found]).
+ *    --refresh-dependencies does not reliably clear this for local file repos.
+ *    A direct files() dependency bypasses module resolution and its cache entirely.
  *    The .module file contains a "component.url" pointing to
  *    ../../storage/1.0.0/storage-1.0.0.module, which doesn't exist in local_repo.
  *    Gradle always reads the .module file when the POM has the
@@ -102,6 +110,35 @@ if (!content.includes(LOCAL_REPO_MARKER)) {
   }
 } else {
   console.log('[patch-async-storage] local_repo already present in repositories block, skipping.');
+}
+
+// --- Patch 4: Replace Maven module dep with a direct files() reference ---
+//
+// Even after fixing/deleting the .module file, Gradle's metadata cache in
+// ~/.gradle/caches/modules-2/metadata-*/ retains the broken component identity
+// (storage-android:1.0.0 → storage:1.0.0 [not found]).  --refresh-dependencies
+// does not reliably invalidate this entry for local file repositories.
+//
+// Replacing the api(...) Maven module declaration with a direct files() reference
+// completely bypasses module resolution and its metadata cache, making the fix
+// immune to any stale cache state on the developer's machine.
+const STORAGE_ANDROID_MARKER = 'storage-android replaced with direct files() dep by scripts/patch-async-storage.js';
+
+if (!content.includes(STORAGE_ANDROID_MARKER)) {
+  const moduleDepPattern = /^(\s*)api\s+"org\.asyncstorage\.shared_storage:storage-android:1\.0\.0"\s*$/m;
+  if (moduleDepPattern.test(content)) {
+    content = content.replace(moduleDepPattern, (match, indent) =>
+      indent + '// ' + STORAGE_ANDROID_MARKER + '\n' +
+      indent + '// Direct files() ref bypasses Maven module resolution and Gradle metadata cache.\n' +
+      indent + "api(files('local_repo/org/asyncstorage/shared_storage/storage-android/1.0.0/storage-android-1.0.0.aar'))"
+    );
+    changed = true;
+    console.log('[patch-async-storage] Patched: replaced storage-android module dep with files() reference.');
+  } else {
+    console.warn('[patch-async-storage] WARNING: Could not find storage-android api dep to replace.');
+  }
+} else {
+  console.log('[patch-async-storage] storage-android already patched to files(), skipping.');
 }
 
 if (changed) {
