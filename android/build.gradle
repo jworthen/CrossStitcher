@@ -33,6 +33,15 @@ allprojects {
         artifact()
       }
     }
+    // Expo bundled module local-maven-repos.
+    // expo-modules-autolinking registers these via repositories.mavenLocal { url = ... }
+    // which in Gradle 9.0.0 does not properly override the URL (defaults to ~/.m2/repository).
+    // Registering them here as standard maven { url = ... } repos bypasses that bug.
+    maven { url = new File(rootDir.parentFile, 'node_modules/expo-keep-awake/local-maven-repo').toURI() }
+    maven { url = new File(rootDir.parentFile, 'node_modules/expo-font/local-maven-repo').toURI() }
+    maven { url = new File(rootDir.parentFile, 'node_modules/expo-asset/local-maven-repo').toURI() }
+    maven { url = new File(rootDir.parentFile, 'node_modules/expo-file-system/local-maven-repo').toURI() }
+    maven { url = new File(rootDir.parentFile, 'node_modules/@expo/dom-webview/local-maven-repo').toURI() }
   }
 }
 
