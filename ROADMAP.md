@@ -20,13 +20,13 @@
 
 ## Phase 3 — Aesthetics & Visual Polish
 - [ ] Custom logo / wordmark in header
-- [ ] Improved typography (custom font pairing)
-- [ ] Animated status transitions (smooth color change on tap)
-- [ ] Color-coded row tinting based on status (subtle background wash)
-- [ ] Richer swatch styling (subtle depth, silk/thread texture)
+- [x] Improved typography (custom font pairing)
+- [x] Animated status transitions (smooth color change on tap)
+- [x] Color-coded row tinting based on status (subtle background wash)
+- [x] Richer swatch styling (subtle depth, silk/thread texture)
 - [ ] Skeleton loading / empty state illustrations
 - [ ] Compact / Comfortable / Spacious density toggle
-- [ ] Header gradient or decorative pattern
+- [x] Header gradient or decorative pattern
 
 ## Phase 4 — PDF Pattern Viewer
 The core differentiator. Pattern Keeper does not support PDF import.
