@@ -63,6 +63,78 @@ html[data-theme="dark"] .header {
   white-space: nowrap;
 }
 
+/* ── Grid toolbar ────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  min-height: 42px;
+}
+
+.toolbarBtn {
+  padding: 4px 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toolbarBtn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.toolbarBtnPrimary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.toolbarBtnPrimary:hover {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  color: #fff;
+}
+
+.toolbarBtnDanger {
+  border-color: transparent;
+  color: #DC2626;
+}
+
+.toolbarBtnDanger:hover {
+  border-color: #DC2626;
+  background: #FEF2F2;
+}
+
+html[data-theme="dark"] .toolbarBtnDanger:hover {
+  background: #3B0D0D;
+}
+
+.toolbarInstruction {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--color-primary);
+  font-style: italic;
+}
+
+.toolbarStitchCount {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
 /* ── Viewer area ─────────────────────────────────────── */
 
 .viewerArea {

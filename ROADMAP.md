@@ -52,12 +52,12 @@ Render patterns in-app so users can read them without leaving.
 - [x] Render a saved PDF as a zoomable, pannable image (pdf.js)
 - [x] Multi-page navigation for patterns that span multiple pages
 
-## Phase 5c — Grid Overlay
+## Phase 5c — Grid Overlay ✅
 The technically complex part. Calibrate a stitch grid over the rendered pattern.
 
-- [ ] User taps two opposite corners of one stitch square to calibrate
-- [ ] App extrapolates cell size and tiles the grid across the full pattern
-- [ ] User enters stitch count (width × height), or app estimates from image dimensions
+- [x] User clicks two opposite corners of one stitch square to calibrate
+- [x] App extrapolates cell size and tiles the grid across the full pattern
+- [x] App estimates stitch count from canvas size ÷ cell size (~W × H display)
 
 ## Phase 5d — Stitch Tracking
 Make the grid interactive.
