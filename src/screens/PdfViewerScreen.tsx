@@ -3,8 +3,10 @@ import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { loadPatternData, saveGridConfig, saveProgress } from '../hooks/usePatterns'
-import type { GridConfig } from '../hooks/usePatterns'
+import { loadPatternData, saveGridConfig, saveProgress, savePatternColors } from '../hooks/usePatterns'
+import type { GridConfig, PatternColor } from '../hooks/usePatterns'
+import { DMC_COLORS } from '../data/dmcColors'
+import PatternColorList from '../components/PatternColorList'
 import styles from './PdfViewerScreen.module.css'
 
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -42,7 +44,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null)
   const [gridConfig, setGridConfig] = useState<GridConfig | undefined>(undefined)
   const [progress, setProgress] = useState<Record<string, true>>({})
+  const [patternColors, setPatternColors] = useState<PatternColor[]>([])
   const [calibState, setCalibState] = useState<CalibState>({ phase: 'off' })
+  const [viewTab, setViewTab] = useState<'pattern' | 'colors'>('pattern')
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
 
@@ -55,6 +61,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       if (!data || cancelled) return
       setGridConfig(data.gridConfig)
       setProgress(data.progress ?? {})
+      setPatternColors(data.patternColors ?? [])
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
         if (!cancelled) { setPdf(doc); setNumPages(doc.numPages) }
@@ -144,6 +151,106 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     saveProgress(patternId, {})
   }
 
+  const scanPdfForColors = async () => {
+    if (!pdf) return
+    setScanning(true)
+    setScanResult(null)
+
+    const dmcMap = new Map(DMC_COLORS.map((c) => [c.number.toLowerCase(), c.number]))
+    const Y_TOL = 4
+
+    interface RowItem { str: string; x: number; y: number }
+
+    // Collect text items with x/y positions across all pages
+    const allRows: RowItem[][] = []
+    for (let p = 1; p <= numPages; p++) {
+      const page = await pdf.getPage(p)
+      const textContent = await page.getTextContent()
+
+      const items: RowItem[] = []
+      for (const item of textContent.items) {
+        if (!('str' in item)) continue
+        const str = item.str.trim()
+        if (!str) continue
+        const [, , , , x, y] = item.transform as number[]
+        items.push({ str, x, y })
+      }
+
+      // Group items into rows by Y coordinate
+      const rowMap = new Map<number, RowItem[]>()
+      for (const item of items) {
+        let matched: number | null = null
+        for (const key of rowMap.keys()) {
+          if (Math.abs(key - item.y) <= Y_TOL) { matched = key; break }
+        }
+        if (matched !== null) rowMap.get(matched)!.push(item)
+        else rowMap.set(item.y, [item])
+      }
+      for (const rowItems of rowMap.values()) {
+        allRows.push(rowItems.sort((a, b) => a.x - b.x))
+      }
+    }
+
+    // Parse each row for DMC number + symbol + stitch count
+    type Entry = { symbol?: string; stitchCount?: number }
+    const found = new Map<string, Entry>()
+
+    for (const row of allRows) {
+      // Locate DMC number in this row
+      let dmcNum: string | null = null
+      let dmcItemIdx = -1
+      outer: for (let i = 0; i < row.length; i++) {
+        for (const token of row[i].str.split(/[\s,;/()\[\]]+/)) {
+          const t = token.trim().toLowerCase()
+          if (t && dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = i; break outer }
+        }
+      }
+      if (!dmcNum || found.has(dmcNum)) continue
+
+      // Symbol: shortest non-numeric token ≤6 chars, preferring those left of the DMC column
+      let symbol: string | undefined
+      for (let i = 0; i < row.length; i++) {
+        if (i === dmcItemIdx) continue
+        const str = row[i].str.trim()
+        if (!str || /^\d+$/.test(str) || str.toLowerCase() === dmcNum.toLowerCase()) continue
+        if (str.length > 6) continue
+        symbol = str
+        if (i < dmcItemIdx) break
+      }
+
+      // Stitch count: a pure integer not in the DMC database
+      let stitchCount: number | undefined
+      for (const item of row) {
+        const str = item.str.trim()
+        if (!/^\d+$/.test(str) || dmcMap.has(str.toLowerCase())) continue
+        const n = parseInt(str, 10)
+        if (n >= 1) { stitchCount = n; break }
+      }
+
+      found.set(dmcNum, { symbol, stitchCount })
+    }
+
+    const existingNums = new Set(patternColors.map((c) => c.dmcNumber.toLowerCase()))
+    const added: PatternColor[] = []
+    for (const [num, meta] of found) {
+      if (!existingNums.has(num.toLowerCase())) {
+        added.push({ dmcNumber: num, done: false, symbol: meta.symbol, stitchCount: meta.stitchCount })
+      }
+    }
+
+    if (added.length > 0) {
+      const next = [...patternColors, ...added]
+      setPatternColors(next)
+      savePatternColors(patternId, next)
+      setScanResult(`Found ${found.size} color${found.size !== 1 ? 's' : ''} — added ${added.length} new`)
+    } else if (found.size > 0) {
+      setScanResult(`Found ${found.size} color${found.size !== 1 ? 's' : ''} — already in list`)
+    } else {
+      setScanResult('No DMC numbers found in PDF text')
+    }
+    setScanning(false)
+  }
+
   const stitchW = canvasSize && gridConfig ? Math.round(canvasSize.w / gridConfig.cellW) : null
   const stitchH = canvasSize && gridConfig ? Math.round(canvasSize.h / gridConfig.cellH) : null
   const estimatedTotal = stitchW && stitchH ? stitchW * stitchH : 0
@@ -161,8 +268,26 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         )}
       </header>
 
-      {/* Grid toolbar — only shown once PDF is loaded */}
+      {/* Tab bar */}
       {pdf && (
+        <div className={styles.tabBar}>
+          <button
+            className={`${styles.viewTab} ${viewTab === 'pattern' ? styles.viewTabActive : ''}`}
+            onClick={() => setViewTab('pattern')}
+          >
+            Pattern
+          </button>
+          <button
+            className={`${styles.viewTab} ${viewTab === 'colors' ? styles.viewTabActive : ''}`}
+            onClick={() => setViewTab('colors')}
+          >
+            Colors{patternColors.length > 0 ? ` (${patternColors.length})` : ''}
+          </button>
+        </div>
+      )}
+
+      {/* Grid toolbar — Pattern tab only */}
+      {pdf && viewTab === 'pattern' && (
         <div className={styles.toolbar}>
           {isCalibrating ? (
             <>
@@ -198,15 +323,40 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         </div>
       )}
 
-      {/* Progress bar — thin strip, only when grid is active */}
-      {pdf && gridConfig && estimatedTotal > 0 && !isCalibrating && (
+      {/* Progress bar — Pattern tab only */}
+      {pdf && viewTab === 'pattern' && gridConfig && estimatedTotal > 0 && !isCalibrating && (
         <div className={styles.progressTrack}>
           <div className={styles.progressFill} style={{ width: `${pct}%` }} />
         </div>
       )}
 
-      {/* Viewer */}
-      <div className={styles.viewerArea}>
+      {/* Color list — Colors tab */}
+      {viewTab === 'colors' && (
+        <div className={styles.colorListArea}>
+          {pdf && (
+            <div className={styles.scanBar}>
+              <button
+                className={`${styles.toolbarBtn} ${styles.toolbarBtnPrimary}`}
+                onClick={scanPdfForColors}
+                disabled={scanning}
+              >
+                {scanning ? 'Scanning…' : 'Scan PDF'}
+              </button>
+              {scanResult && <span className={styles.scanResult}>{scanResult}</span>}
+            </div>
+          )}
+          <PatternColorList
+            colors={patternColors}
+            onChange={(colors) => {
+              setPatternColors(colors)
+              savePatternColors(patternId, colors)
+            }}
+          />
+        </div>
+      )}
+
+      {/* Viewer — Pattern tab */}
+      <div className={styles.viewerArea} style={{ display: viewTab === 'pattern' ? 'flex' : 'none' }}>
         {error ? (
           <p className={styles.message}>{error}</p>
         ) : !pdf ? (
@@ -275,8 +425,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         )}
       </div>
 
-      {/* Page navigation */}
-      {numPages > 1 && (
+      {/* Page navigation — Pattern tab only */}
+      {viewTab === 'pattern' && numPages > 1 && (
         <nav className={styles.pageNav}>
           <button className={styles.pageBtn}
             onClick={() => setPageNum((n) => Math.max(1, n - 1))}
