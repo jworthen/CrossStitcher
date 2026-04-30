@@ -1,47 +1,53 @@
-import { useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FlossStatus } from '../data/dmcColors';
+import { useState, useCallback } from 'react'
+import { FlossStatus } from '../data/dmcColors'
 
-const STORAGE_KEY = '@floss_inventory';
+const STORAGE_KEY = '@floss_inventory'
 
-type Inventory = Record<string, FlossStatus>;
+type Inventory = Record<string, FlossStatus>
+
+function loadFromStorage(): Inventory {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as Inventory) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveToStorage(inventory: Inventory) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory))
+  } catch {
+    // storage quota exceeded or unavailable — silently ignore
+  }
+}
 
 export function useInventory() {
-  const [inventory, setInventory] = useState<Inventory>({});
-  const [loaded, setLoaded] = useState(false);
+  const [inventory, setInventory] = useState<Inventory>(loadFromStorage)
 
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((json) => {
-      if (json) {
-        setInventory(JSON.parse(json));
-      }
-      setLoaded(true);
-    });
-  }, []);
+  const setStatus = useCallback((number: string, status: FlossStatus) => {
+    setInventory((prev) => {
+      const next = { ...prev, [number]: status }
+      saveToStorage(next)
+      return next
+    })
+  }, [])
 
-  const setStatus = useCallback(
-    async (number: string, status: FlossStatus) => {
-      const next = { ...inventory, [number]: status };
-      setInventory(next);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    },
-    [inventory]
-  );
-
-  const cycleStatus = useCallback(
-    (number: string) => {
-      const current = inventory[number] ?? 'unowned';
+  const cycleStatus = useCallback((number: string) => {
+    setInventory((prev) => {
+      const current = prev[number] ?? 'unowned'
       const next: FlossStatus =
-        current === 'unowned' ? 'in_stock' : current === 'in_stock' ? 'low' : 'unowned';
-      setStatus(number, next);
-    },
-    [inventory, setStatus]
-  );
+        current === 'unowned' ? 'in_stock' : current === 'in_stock' ? 'low' : 'unowned'
+      const updated = { ...prev, [number]: next }
+      saveToStorage(updated)
+      return updated
+    })
+  }, [])
 
   const getStatus = useCallback(
     (number: string): FlossStatus => inventory[number] ?? 'unowned',
     [inventory]
-  );
+  )
 
-  return { inventory, loaded, setStatus, cycleStatus, getStatus };
+  return { inventory, setStatus, cycleStatus, getStatus }
 }
