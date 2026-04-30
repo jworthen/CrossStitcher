@@ -3,7 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { loadPatternData, saveGridConfig } from '../hooks/usePatterns'
+import { loadPatternData, saveGridConfig, saveProgress } from '../hooks/usePatterns'
 import type { GridConfig } from '../hooks/usePatterns'
 import styles from './PdfViewerScreen.module.css'
 
@@ -41,6 +41,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [error, setError] = useState<string | null>(null)
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null)
   const [gridConfig, setGridConfig] = useState<GridConfig | undefined>(undefined)
+  const [progress, setProgress] = useState<Record<string, true>>({})
   const [calibState, setCalibState] = useState<CalibState>({ phase: 'off' })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
@@ -53,6 +54,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     loadPatternData(patternId).then(async (data) => {
       if (!data || cancelled) return
       setGridConfig(data.gridConfig)
+      setProgress(data.progress ?? {})
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
         if (!cancelled) { setPdf(doc); setNumPages(doc.numPages) }
@@ -93,42 +95,60 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     return () => { cancelled = true }
   }, [pdf, pageNum])
 
-  // Capture calibration clicks on the SVG overlay
+  // Unified SVG click handler — calibration or stitch toggling
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!isCalibrating || !canvasSize) return
+    if (!canvasSize) return
     const rect = e.currentTarget.getBoundingClientRect()
     const zoom = rect.width / canvasSize.w
     const x = (e.clientX - rect.left) / zoom
     const y = (e.clientY - rect.top) / zoom
 
-    if (calibState.phase === 'corner1') {
-      setCalibState({ phase: 'corner2', c1: { x, y } })
-    } else if (calibState.phase === 'corner2') {
-      const cellW = Math.abs(x - calibState.c1.x)
-      const cellH = Math.abs(y - calibState.c1.y)
-      if (cellW < 2 || cellH < 2) {
-        // Points too close — let the user try again
-        setCalibState({ phase: 'corner1' })
-        return
+    if (isCalibrating) {
+      if (calibState.phase === 'corner1') {
+        setCalibState({ phase: 'corner2', c1: { x, y } })
+      } else if (calibState.phase === 'corner2') {
+        const cellW = Math.abs(x - calibState.c1.x)
+        const cellH = Math.abs(y - calibState.c1.y)
+        if (cellW < 2 || cellH < 2) { setCalibState({ phase: 'corner1' }); return }
+        const config: GridConfig = {
+          originX: Math.min(calibState.c1.x, x),
+          originY: Math.min(calibState.c1.y, y),
+          cellW, cellH,
+        }
+        setGridConfig(config)
+        setCalibState({ phase: 'off' })
+        // Clear stale progress — cell positions are no longer valid after recalibration
+        setProgress({})
+        saveProgress(patternId, {})
+        saveGridConfig(patternId, config)
       }
-      const config: GridConfig = {
-        originX: Math.min(calibState.c1.x, x),
-        originY: Math.min(calibState.c1.y, y),
-        cellW, cellH,
-      }
-      setGridConfig(config)
-      setCalibState({ phase: 'off' })
-      saveGridConfig(patternId, config)
+    } else if (gridConfig) {
+      // Toggle the stitch square under the click
+      const col = Math.floor((x - gridConfig.originX) / gridConfig.cellW)
+      const row = Math.floor((y - gridConfig.originY) / gridConfig.cellH)
+      const key = `${col},${row}`
+      setProgress((prev) => {
+        const next = { ...prev }
+        if (next[key]) delete next[key]
+        else next[key] = true
+        saveProgress(patternId, next)
+        return next
+      })
     }
   }
 
   const handleClearGrid = () => {
     setGridConfig(undefined)
+    setProgress({})
     saveGridConfig(patternId, undefined)
+    saveProgress(patternId, {})
   }
 
   const stitchW = canvasSize && gridConfig ? Math.round(canvasSize.w / gridConfig.cellW) : null
   const stitchH = canvasSize && gridConfig ? Math.round(canvasSize.h / gridConfig.cellH) : null
+  const estimatedTotal = stitchW && stitchH ? stitchW * stitchH : 0
+  const completedCount = Object.keys(progress).length
+  const pct = estimatedTotal > 0 ? Math.min(100, (completedCount / estimatedTotal) * 100) : 0
 
   return (
     <div className={styles.container}>
@@ -169,10 +189,19 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                 </button>
               )}
               {stitchW && stitchH && (
-                <span className={styles.toolbarStitchCount}>~{stitchW} × {stitchH} stitches</span>
+                <span className={styles.toolbarStitchCount}>
+                  {completedCount} / ~{estimatedTotal} stitches
+                </span>
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Progress bar — thin strip, only when grid is active */}
+      {pdf && gridConfig && estimatedTotal > 0 && !isCalibrating && (
+        <div className={styles.progressTrack}>
+          <div className={styles.progressFill} style={{ width: `${pct}%` }} />
         </div>
       )}
 
@@ -204,13 +233,26 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                       position: 'absolute', top: 0, left: 0,
                       width: canvasSize.w, height: canvasSize.h,
                       overflow: 'visible',
-                      pointerEvents: isCalibrating ? 'auto' : 'none',
-                      cursor: isCalibrating ? 'crosshair' : 'default',
+                      pointerEvents: (isCalibrating || !!gridConfig) ? 'auto' : 'none',
+                      cursor: isCalibrating ? 'crosshair' : (gridConfig ? 'pointer' : 'default'),
                     }}
                     onClick={handleSvgClick}
                   >
                     {gridConfig && (
                       <>
+                        {/* Completed stitch squares — drawn before grid lines so lines sit on top */}
+                        {Object.keys(progress).map((key) => {
+                          const [col, row] = key.split(',').map(Number)
+                          const rx = gridConfig.originX + col * gridConfig.cellW
+                          const ry = gridConfig.originY + row * gridConfig.cellH
+                          return (
+                            <rect key={key}
+                              x={rx + 0.5} y={ry + 0.5}
+                              width={gridConfig.cellW - 1} height={gridConfig.cellH - 1}
+                              fill="rgba(34,197,94,0.4)" />
+                          )
+                        })}
+                        {/* Grid lines */}
                         {gridPositions(gridConfig.originX, gridConfig.cellW, canvasSize.w).map((x, i) => (
                           <line key={`v${i}`} x1={x} y1={0} x2={x} y2={canvasSize.h}
                             stroke="rgba(59,130,246,0.5)" strokeWidth={0.75} />
