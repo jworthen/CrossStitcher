@@ -38,27 +38,40 @@ A public-facing website to establish CrossStitcher's identity and attract users.
 - [ ] Roadmap teaser: what's coming (pattern viewer, shopping list)
 - [ ] Responsive design, dark mode support
 
-## Phase 5 — PDF Pattern Viewer
-The core differentiator. Pattern Keeper does not support PDF import.
+## Phase 5a — Pattern Library ✅
+File management only — no rendering yet. Gets the storage layer in place.
 
-**Scope:** Digital PDFs only (e.g. purchased patterns from Etsy, designer websites). Scanned/photographed patterns are out of scope — digital PDFs have mathematically perfect, consistent grids which makes reliable grid detection possible.
+- [x] Upload a PDF pattern from device
+- [x] Name and save patterns to the browser (IndexedDB)
+- [x] List of saved patterns (name, date added, file size)
+- [x] Delete patterns (with confirmation)
 
-**Grid setup:**
-- [ ] Import a digital PDF pattern from device storage
-- [ ] Render the PDF as a zoomable, pannable image
-- [ ] User zooms in and outlines a single stitch square by tapping two opposite corners
-- [ ] App extrapolates cell size and origin from that one square and tiles the grid across the entire pattern
-- [ ] User enters stitch count (width × height), or app estimates it by dividing image dimensions by cell size
-- [ ] Grid overlay renders on top of the pattern
+## Phase 5b — PDF Viewer
+Render patterns in-app so users can read them without leaving.
 
-**Color list:**
-- [ ] Extract the DMC color list from the pattern (manual entry or parsed from PDF legend)
+- [ ] Render a saved PDF as a zoomable, pannable image (pdf.js)
+- [ ] Multi-page navigation for patterns that span multiple pages
 
-**Tracking:**
-- [ ] Tap a square to mark it complete (toggle)
-- [ ] Track overall % complete
-- [ ] Per-color progress: stitches done vs remaining per DMC color
-- [ ] Save progress per pattern (multiple patterns supported)
+## Phase 5c — Grid Overlay
+The technically complex part. Calibrate a stitch grid over the rendered pattern.
+
+- [ ] User taps two opposite corners of one stitch square to calibrate
+- [ ] App extrapolates cell size and tiles the grid across the full pattern
+- [ ] User enters stitch count (width × height), or app estimates from image dimensions
+
+## Phase 5d — Stitch Tracking
+Make the grid interactive.
+
+- [ ] Tap a grid square to mark it complete (toggle)
+- [ ] Overall % complete progress bar
+- [ ] Progress saves per pattern (multiple patterns supported)
+
+## Phase 5e — Color List
+Manual entry of a pattern's color requirements. Unlocks Phase 6 inventory integration.
+
+- [ ] Add DMC color numbers used in a pattern (manual entry)
+- [ ] Enter stitch count per color
+- [ ] Per-color progress: stitches done vs. remaining
 
 ## Phase 6 — Inventory + Pattern Integration
 - [ ] Cross-reference pattern color requirements against your inventory
