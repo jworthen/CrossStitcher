@@ -38,13 +38,13 @@ A public-facing website to establish CrossStitcher's identity and attract users.
 - [ ] Roadmap teaser: what's coming (pattern viewer, shopping list)
 - [ ] Responsive design, dark mode support
 
-## Phase 5a — Pattern Library
+## Phase 5a — Pattern Library ✅
 File management only — no rendering yet. Gets the storage layer in place.
 
-- [ ] Upload a PDF pattern from device
-- [ ] Name and save patterns to the browser
-- [ ] List of saved patterns (name, date added)
-- [ ] Delete patterns
+- [x] Upload a PDF pattern from device
+- [x] Name and save patterns to the browser (IndexedDB)
+- [x] List of saved patterns (name, date added, file size)
+- [x] Delete patterns (with confirmation)
 
 ## Phase 5b — PDF Viewer
 Render patterns in-app so users can read them without leaving.
