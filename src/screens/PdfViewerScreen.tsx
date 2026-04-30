@@ -3,8 +3,9 @@ import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { loadPatternData, saveGridConfig, saveProgress } from '../hooks/usePatterns'
-import type { GridConfig } from '../hooks/usePatterns'
+import { loadPatternData, saveGridConfig, saveProgress, savePatternColors } from '../hooks/usePatterns'
+import type { GridConfig, PatternColor } from '../hooks/usePatterns'
+import PatternColorList from '../components/PatternColorList'
 import styles from './PdfViewerScreen.module.css'
 
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -42,7 +43,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null)
   const [gridConfig, setGridConfig] = useState<GridConfig | undefined>(undefined)
   const [progress, setProgress] = useState<Record<string, true>>({})
+  const [patternColors, setPatternColors] = useState<PatternColor[]>([])
   const [calibState, setCalibState] = useState<CalibState>({ phase: 'off' })
+  const [viewTab, setViewTab] = useState<'pattern' | 'colors'>('pattern')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
 
@@ -55,6 +58,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       if (!data || cancelled) return
       setGridConfig(data.gridConfig)
       setProgress(data.progress ?? {})
+      setPatternColors(data.patternColors ?? [])
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
         if (!cancelled) { setPdf(doc); setNumPages(doc.numPages) }
@@ -161,8 +165,26 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         )}
       </header>
 
-      {/* Grid toolbar — only shown once PDF is loaded */}
+      {/* Tab bar */}
       {pdf && (
+        <div className={styles.tabBar}>
+          <button
+            className={`${styles.viewTab} ${viewTab === 'pattern' ? styles.viewTabActive : ''}`}
+            onClick={() => setViewTab('pattern')}
+          >
+            Pattern
+          </button>
+          <button
+            className={`${styles.viewTab} ${viewTab === 'colors' ? styles.viewTabActive : ''}`}
+            onClick={() => setViewTab('colors')}
+          >
+            Colors{patternColors.length > 0 ? ` (${patternColors.length})` : ''}
+          </button>
+        </div>
+      )}
+
+      {/* Grid toolbar — Pattern tab only */}
+      {pdf && viewTab === 'pattern' && (
         <div className={styles.toolbar}>
           {isCalibrating ? (
             <>
@@ -198,15 +220,28 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         </div>
       )}
 
-      {/* Progress bar — thin strip, only when grid is active */}
-      {pdf && gridConfig && estimatedTotal > 0 && !isCalibrating && (
+      {/* Progress bar — Pattern tab only */}
+      {pdf && viewTab === 'pattern' && gridConfig && estimatedTotal > 0 && !isCalibrating && (
         <div className={styles.progressTrack}>
           <div className={styles.progressFill} style={{ width: `${pct}%` }} />
         </div>
       )}
 
-      {/* Viewer */}
-      <div className={styles.viewerArea}>
+      {/* Color list — Colors tab */}
+      {viewTab === 'colors' && (
+        <div className={styles.colorListArea}>
+          <PatternColorList
+            colors={patternColors}
+            onChange={(colors) => {
+              setPatternColors(colors)
+              savePatternColors(patternId, colors)
+            }}
+          />
+        </div>
+      )}
+
+      {/* Viewer — Pattern tab */}
+      <div className={styles.viewerArea} style={{ display: viewTab === 'pattern' ? 'flex' : 'none' }}>
         {error ? (
           <p className={styles.message}>{error}</p>
         ) : !pdf ? (
@@ -275,8 +310,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         )}
       </div>
 
-      {/* Page navigation */}
-      {numPages > 1 && (
+      {/* Page navigation — Pattern tab only */}
+      {viewTab === 'pattern' && numPages > 1 && (
         <nav className={styles.pageNav}>
           <button className={styles.pageBtn}
             onClick={() => setPageNum((n) => Math.max(1, n - 1))}

@@ -4,6 +4,12 @@ const DB_NAME = 'crossstitcher'
 const DB_VERSION = 1
 const STORE = 'patterns'
 
+export interface PatternColor {
+  dmcNumber: string
+  stitchCount?: number
+  done: boolean
+}
+
 export interface GridConfig {
   originX: number
   originY: number
@@ -22,6 +28,7 @@ interface StoredPattern extends PatternMeta {
   file: ArrayBuffer
   gridConfig?: GridConfig
   progress?: Record<string, true>
+  patternColors?: PatternColor[]
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -73,11 +80,26 @@ function toMeta({ id, name, dateAdded, fileSize }: StoredPattern): PatternMeta {
   return { id, name, dateAdded, fileSize }
 }
 
-export async function loadPatternData(id: string): Promise<{ file: ArrayBuffer; gridConfig?: GridConfig; progress?: Record<string, true> } | null> {
+export async function loadPatternData(id: string): Promise<{
+  file: ArrayBuffer
+  gridConfig?: GridConfig
+  progress?: Record<string, true>
+  patternColors?: PatternColor[]
+} | null> {
   const db = await openDB()
   const record = await idbGet(db, id)
   if (!record) return null
-  return { file: record.file, gridConfig: record.gridConfig, progress: record.progress }
+  return { file: record.file, gridConfig: record.gridConfig, progress: record.progress, patternColors: record.patternColors }
+}
+
+export async function savePatternColors(id: string, patternColors: PatternColor[]): Promise<void> {
+  const db = await openDB()
+  const record = await idbGet(db, id)
+  if (!record) return
+  const updated: StoredPattern = { ...record }
+  if (patternColors.length > 0) updated.patternColors = patternColors
+  else delete updated.patternColors
+  await idbPut(db, updated)
 }
 
 export async function saveProgress(id: string, progress: Record<string, true>): Promise<void> {

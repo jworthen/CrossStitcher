@@ -75,12 +75,12 @@ Let users document their patterns properly. Currently patterns are named from th
 - [ ] Notes field (free text — source URL, purchase date, kit contents, etc.)
 - [ ] Display designer name as a subtitle under the pattern name in the library
 
-## Phase 5e — Color List
+## Phase 5e — Color List ✅
 Manual entry of a pattern's color requirements. Unlocks Phase 6 inventory integration.
 
-- [ ] Add DMC color numbers used in a pattern (manual entry)
-- [ ] Enter stitch count per color
-- [ ] Per-color progress: stitches done vs. remaining
+- [x] Add DMC color numbers used in a pattern (manual entry)
+- [x] Enter stitch count per color
+- [x] Per-color progress: mark colors done, summary shows stitches done vs. remaining
 
 ## Phase 6 — Inventory + Pattern Integration
 - [ ] Cross-reference pattern color requirements against your inventory
