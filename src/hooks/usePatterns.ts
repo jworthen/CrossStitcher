@@ -21,6 +21,7 @@ export interface PatternMeta {
 interface StoredPattern extends PatternMeta {
   file: ArrayBuffer
   gridConfig?: GridConfig
+  progress?: Record<string, true>
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -72,11 +73,21 @@ function toMeta({ id, name, dateAdded, fileSize }: StoredPattern): PatternMeta {
   return { id, name, dateAdded, fileSize }
 }
 
-export async function loadPatternData(id: string): Promise<{ file: ArrayBuffer; gridConfig?: GridConfig } | null> {
+export async function loadPatternData(id: string): Promise<{ file: ArrayBuffer; gridConfig?: GridConfig; progress?: Record<string, true> } | null> {
   const db = await openDB()
   const record = await idbGet(db, id)
   if (!record) return null
-  return { file: record.file, gridConfig: record.gridConfig }
+  return { file: record.file, gridConfig: record.gridConfig, progress: record.progress }
+}
+
+export async function saveProgress(id: string, progress: Record<string, true>): Promise<void> {
+  const db = await openDB()
+  const record = await idbGet(db, id)
+  if (!record) return
+  const updated: StoredPattern = { ...record }
+  if (Object.keys(progress).length > 0) updated.progress = progress
+  else delete updated.progress
+  await idbPut(db, updated)
 }
 
 export async function saveGridConfig(id: string, gridConfig: GridConfig | undefined): Promise<void> {

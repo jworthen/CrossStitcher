@@ -59,12 +59,12 @@ The technically complex part. Calibrate a stitch grid over the rendered pattern.
 - [x] App extrapolates cell size and tiles the grid across the full pattern
 - [x] App estimates stitch count from canvas size ÷ cell size (~W × H display)
 
-## Phase 5d — Stitch Tracking
+## Phase 5d — Stitch Tracking ✅
 Make the grid interactive.
 
-- [ ] Tap a grid square to mark it complete (toggle)
-- [ ] Overall % complete progress bar
-- [ ] Progress saves per pattern (multiple patterns supported)
+- [x] Tap a grid square to mark it complete (toggle)
+- [x] Overall % complete progress bar
+- [x] Progress saves per pattern (multiple patterns supported)
 
 ## Phase 5f — Pattern Metadata
 Let users document their patterns properly. Currently patterns are named from the PDF filename, which is often an order number or garbled string.
