@@ -126,7 +126,17 @@ export default function FlossListScreen() {
 
   const listRows = useMemo((): ListRow[] => {
     if (sortMode === 'number') {
-      return filtered.map((color) => ({ type: 'color', color }))
+      const sorted = [...filtered].sort((a, b) => {
+        const aNum = parseInt(a.number, 10)
+        const bNum = parseInt(b.number, 10)
+        const aIsNum = !isNaN(aNum)
+        const bIsNum = !isNaN(bNum)
+        if (aIsNum && bIsNum) return aNum - bNum
+        if (aIsNum) return -1
+        if (bIsNum) return 1
+        return a.number.localeCompare(b.number)
+      })
+      return sorted.map((color) => ({ type: 'color', color }))
     }
     const sorted = [...filtered].sort((a, b) => getHueSortKey(a.hex) - getHueSortKey(b.hex))
     const rows: ListRow[] = []
