@@ -33,6 +33,18 @@ export function useInventory() {
     })
   }, [])
 
+  // Apply multiple status changes in a single state update (avoids N storage writes)
+  const bulkSetStatus = useCallback((updates: Array<{ number: string; status: FlossStatus }>) => {
+    setInventory((prev) => {
+      const next = { ...prev }
+      for (const { number, status } of updates) {
+        next[number] = status
+      }
+      saveToStorage(next)
+      return next
+    })
+  }, [])
+
   const cycleStatus = useCallback((number: string) => {
     setInventory((prev) => {
       const current = prev[number] ?? 'unowned'
@@ -49,5 +61,5 @@ export function useInventory() {
     [inventory]
   )
 
-  return { inventory, setStatus, cycleStatus, getStatus }
+  return { inventory, setStatus, bulkSetStatus, cycleStatus, getStatus }
 }
