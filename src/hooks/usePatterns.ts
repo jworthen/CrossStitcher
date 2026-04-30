@@ -8,6 +8,7 @@ export interface PatternColor {
   dmcNumber: string
   stitchCount?: number
   done: boolean
+  symbol?: string
 }
 
 export interface GridConfig {

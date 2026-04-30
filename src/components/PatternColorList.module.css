@@ -111,6 +111,17 @@
   opacity: 0.5;
 }
 
+.symbol {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--color-text);
+  line-height: 1;
+}
+
 .swatch {
   width: 30px;
   height: 30px;

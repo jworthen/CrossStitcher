@@ -155,27 +155,86 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     if (!pdf) return
     setScanning(true)
     setScanResult(null)
-    const dmcSet = new Map(DMC_COLORS.map((c) => [c.number.toLowerCase(), c.number]))
-    const found = new Set<string>()
 
+    const dmcMap = new Map(DMC_COLORS.map((c) => [c.number.toLowerCase(), c.number]))
+    const Y_TOL = 4
+
+    interface RowItem { str: string; x: number; y: number }
+
+    // Collect text items with x/y positions across all pages
+    const allRows: RowItem[][] = []
     for (let p = 1; p <= numPages; p++) {
       const page = await pdf.getPage(p)
       const textContent = await page.getTextContent()
+
+      const items: RowItem[] = []
       for (const item of textContent.items) {
         if (!('str' in item)) continue
-        const tokens = item.str.split(/[\s,;/()\[\]]+/)
-        for (const token of tokens) {
+        const str = item.str.trim()
+        if (!str) continue
+        const [, , , , x, y] = item.transform as number[]
+        items.push({ str, x, y })
+      }
+
+      // Group items into rows by Y coordinate
+      const rowMap = new Map<number, RowItem[]>()
+      for (const item of items) {
+        let matched: number | null = null
+        for (const key of rowMap.keys()) {
+          if (Math.abs(key - item.y) <= Y_TOL) { matched = key; break }
+        }
+        if (matched !== null) rowMap.get(matched)!.push(item)
+        else rowMap.set(item.y, [item])
+      }
+      for (const rowItems of rowMap.values()) {
+        allRows.push(rowItems.sort((a, b) => a.x - b.x))
+      }
+    }
+
+    // Parse each row for DMC number + symbol + stitch count
+    type Entry = { symbol?: string; stitchCount?: number }
+    const found = new Map<string, Entry>()
+
+    for (const row of allRows) {
+      // Locate DMC number in this row
+      let dmcNum: string | null = null
+      let dmcItemIdx = -1
+      outer: for (let i = 0; i < row.length; i++) {
+        for (const token of row[i].str.split(/[\s,;/()\[\]]+/)) {
           const t = token.trim().toLowerCase()
-          if (t && dmcSet.has(t)) found.add(dmcSet.get(t)!)
+          if (t && dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = i; break outer }
         }
       }
+      if (!dmcNum || found.has(dmcNum)) continue
+
+      // Symbol: shortest non-numeric token ≤6 chars, preferring those left of the DMC column
+      let symbol: string | undefined
+      for (let i = 0; i < row.length; i++) {
+        if (i === dmcItemIdx) continue
+        const str = row[i].str.trim()
+        if (!str || /^\d+$/.test(str) || str.toLowerCase() === dmcNum.toLowerCase()) continue
+        if (str.length > 6) continue
+        symbol = str
+        if (i < dmcItemIdx) break
+      }
+
+      // Stitch count: a pure integer not in the DMC database
+      let stitchCount: number | undefined
+      for (const item of row) {
+        const str = item.str.trim()
+        if (!/^\d+$/.test(str) || dmcMap.has(str.toLowerCase())) continue
+        const n = parseInt(str, 10)
+        if (n >= 1) { stitchCount = n; break }
+      }
+
+      found.set(dmcNum, { symbol, stitchCount })
     }
 
     const existingNums = new Set(patternColors.map((c) => c.dmcNumber.toLowerCase()))
     const added: PatternColor[] = []
-    for (const num of found) {
+    for (const [num, meta] of found) {
       if (!existingNums.has(num.toLowerCase())) {
-        added.push({ dmcNumber: num, done: false })
+        added.push({ dmcNumber: num, done: false, symbol: meta.symbol, stitchCount: meta.stitchCount })
       }
     }
 

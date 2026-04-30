@@ -51,6 +51,7 @@ export default function PatternColorList({ colors, onChange }: Props) {
   const totalStitches = colors.reduce((s, c) => s + (c.stitchCount ?? 0), 0)
   const doneStitches = colors.filter((c) => c.done).reduce((s, c) => s + (c.stitchCount ?? 0), 0)
   const doneCount = colors.filter((c) => c.done).length
+  const hasSymbols = colors.some((c) => c.symbol)
 
   return (
     <div className={styles.container}>
@@ -95,6 +96,9 @@ export default function PatternColorList({ colors, onChange }: Props) {
               const name = dmc?.name ?? 'Unknown color'
               return (
                 <li key={color.dmcNumber} className={`${styles.row} ${color.done ? styles.rowDone : ''}`}>
+                  {hasSymbols && (
+                    <span className={styles.symbol}>{color.symbol ?? ''}</span>
+                  )}
                   <div
                     className={styles.swatch}
                     style={{
