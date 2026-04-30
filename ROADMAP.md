@@ -46,11 +46,11 @@ File management only — no rendering yet. Gets the storage layer in place.
 - [x] List of saved patterns (name, date added, file size)
 - [x] Delete patterns (with confirmation)
 
-## Phase 5b — PDF Viewer
+## Phase 5b — PDF Viewer ✅
 Render patterns in-app so users can read them without leaving.
 
-- [ ] Render a saved PDF as a zoomable, pannable image (pdf.js)
-- [ ] Multi-page navigation for patterns that span multiple pages
+- [x] Render a saved PDF as a zoomable, pannable image (pdf.js)
+- [x] Multi-page navigation for patterns that span multiple pages
 
 ## Phase 5c — Grid Overlay
 The technically complex part. Calibrate a stitch grid over the rendered pattern.

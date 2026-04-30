@@ -64,6 +64,12 @@ function toMeta({ id, name, dateAdded, fileSize }: StoredPattern): PatternMeta {
   return { id, name, dateAdded, fileSize }
 }
 
+export async function loadPatternFile(id: string): Promise<ArrayBuffer | null> {
+  const db = await openDB()
+  const record = await idbGet(db, id)
+  return record?.file ?? null
+}
+
 export function usePatterns() {
   const [patterns, setPatterns] = useState<PatternMeta[]>([])
   const [loading, setLoading] = useState(true)

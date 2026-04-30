@@ -13,7 +13,11 @@ function formatDate(ts: number): string {
   })
 }
 
-export default function PatternLibraryScreen() {
+interface Props {
+  onOpenViewer: (patternId: string, patternName: string) => void
+}
+
+export default function PatternLibraryScreen({ onOpenViewer }: Props) {
   const { patterns, loading, addPattern, deletePattern } = usePatterns()
   const [deletePending, setDeletePending] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -41,8 +45,9 @@ export default function PatternLibraryScreen() {
   const handleRowClick = (p: PatternMeta) => {
     if (deletePending === p.id) {
       setDeletePending(null)
+      return
     }
-    // Phase 5b: open PDF viewer
+    onOpenViewer(p.id, p.name)
   }
 
   return (
