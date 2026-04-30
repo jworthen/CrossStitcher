@@ -1,6 +1,6 @@
 # CrossStitcher
 
-A mobile app for tracking your DMC embroidery floss inventory.
+A web app for tracking your DMC embroidery floss inventory.
 
 ## Features
 
@@ -8,14 +8,17 @@ A mobile app for tracking your DMC embroidery floss inventory.
 - Mark each color as **In Stock**, **Low**, or **Unowned**
 - Search by DMC number or color name
 - Filter by status: All / In Stock / Low / Missing
-- Inventory saves automatically on your device
+- Sort numerically or group by color family
+- Bulk actions: mark all visible as owned/low/unowned, clear all Low → In Stock, or reset inventory
+- Export inventory as CSV or JSON
+- Dark mode support
+- Inventory saves automatically in your browser
 
 ## Getting Started
 
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18 or later)
-- [Android Studio](https://developer.android.com/studio) with Android SDK 36
 
 ### Install dependencies
 
@@ -23,26 +26,35 @@ A mobile app for tracking your DMC embroidery floss inventory.
 npm install
 ```
 
-### Run on Android
+### Run locally
 
 ```bash
-npx expo run:android
+npm run dev
 ```
 
-Make sure an Android emulator is running or a device is connected via USB with USB debugging enabled.
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### Build for production
+
+```bash
+npm run build
+```
 
 ## Project Structure
 
 ```
 src/
   data/
-    dmcColors.ts        # Full DMC color list with hex values
+    dmcColors.ts                  # Full DMC color list with hex values
   hooks/
-    useInventory.ts     # Inventory state + AsyncStorage persistence
+    useInventory.ts               # Inventory state + localStorage persistence
+    useDarkMode.ts                # Dark mode toggle with system preference detection
   components/
-    FlossItem.tsx       # Individual color row component
+    FlossItem.tsx                 # Individual color row component
+    FlossItem.module.css
   screens/
-    FlossListScreen.tsx # Main inventory screen
+    FlossListScreen.tsx           # Main inventory screen
+    FlossListScreen.module.css
 ```
 
 ## Roadmap
