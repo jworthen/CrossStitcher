@@ -66,6 +66,15 @@ Make the grid interactive.
 - [ ] Overall % complete progress bar
 - [ ] Progress saves per pattern (multiple patterns supported)
 
+## Phase 5f — Pattern Metadata
+Let users document their patterns properly. Currently patterns are named from the PDF filename, which is often an order number or garbled string.
+
+- [ ] Edit pattern name (in-place, from the library list or viewer header)
+- [ ] Designer / brand field (e.g., "Dimensions", "Anchor", "indie designer name")
+- [ ] Fabric type & count (e.g., 14-count Aida, 28-count evenweave)
+- [ ] Notes field (free text — source URL, purchase date, kit contents, etc.)
+- [ ] Display designer name as a subtitle under the pattern name in the library
+
 ## Phase 5e — Color List
 Manual entry of a pattern's color requirements. Unlocks Phase 6 inventory integration.
 
