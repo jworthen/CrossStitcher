@@ -9,7 +9,7 @@
 - Live count summary in header
 - State persisted locally via localStorage
 
-## Phase 2 — UX Polish 🚧
+## Phase 2 — UX Polish ✅
 - [x] Sort/group toggle: switch between numerical order and color family grouping
 - [x] Bulk actions on current view:
   - Mark all visible colors as owned/low/unowned (works with active search or filter)
@@ -18,7 +18,7 @@
 - [x] Dark mode support
 - [x] Export inventory as CSV or JSON
 
-## Phase 3 — Aesthetics & Visual Polish
+## Phase 3 — Aesthetics & Visual Polish 🚧
 - [ ] Custom logo / wordmark in header
 - [x] Improved typography (custom font pairing)
 - [x] Animated status transitions (smooth color change on tap)
@@ -66,6 +66,14 @@ Make the grid interactive.
 - [x] Overall % complete progress bar
 - [x] Progress saves per pattern (multiple patterns supported)
 
+## Phase 5e — Color List ✅
+Track a pattern's color requirements. Unlocks Phase 6 inventory integration.
+
+- [x] Scan PDF text to auto-detect DMC color numbers from the legend
+- [x] Extract stitch counts and legend symbols from scanned rows
+- [x] Manual add/remove as fallback for PDFs without extractable text
+- [x] Per-color progress: mark colors done, summary shows stitches done vs. remaining
+
 ## Phase 5f — Pattern Metadata
 Let users document their patterns properly. Currently patterns are named from the PDF filename, which is often an order number or garbled string.
 
@@ -75,13 +83,6 @@ Let users document their patterns properly. Currently patterns are named from th
 - [ ] Notes field (free text — source URL, purchase date, kit contents, etc.)
 - [ ] Display designer name as a subtitle under the pattern name in the library
 
-## Phase 5e — Color List ✅
-Manual entry of a pattern's color requirements. Unlocks Phase 6 inventory integration.
-
-- [x] Add DMC color numbers used in a pattern (manual entry)
-- [x] Enter stitch count per color
-- [x] Per-color progress: mark colors done, summary shows stitches done vs. remaining
-
 ## Phase 6 — Inventory + Pattern Integration
 - [ ] Cross-reference pattern color requirements against your inventory
 - [ ] Shopping list: what you need to buy before starting a pattern
@@ -89,10 +90,10 @@ Manual entry of a pattern's color requirements. Unlocks Phase 6 inventory integr
 - [ ] Mark shopping list items as bought → auto-update inventory
 
 ## Phase 7 — AI & Camera Features
-Inspired by competitors. Requires browser camera access (WebRTC) and an AI/vision backend.
+For physical/paper patterns and loose skeins — cases where there's no PDF to extract from. Requires browser camera access (WebRTC) and an AI/vision backend. (Digital PDF legend extraction is already handled in Phase 5e.)
 
 - [ ] **Barcode scanning** — point camera at a floss skein's barcode to add it to inventory instantly
-- [ ] **AI legend scanning** — photograph a pattern's color key; AI extracts DMC numbers and cross-references against your stash
+- [ ] **AI legend scanning** — photograph a paper pattern's color key; AI extracts DMC numbers and cross-references against your stash
 - [ ] **Shopping list from legend scan** — auto-generate what to buy based on a scanned legend vs. current inventory
 
 ## Phase 8 — Sync & Extras
