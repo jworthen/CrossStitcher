@@ -22,18 +22,29 @@
 }
 
 .header {
-  background: var(--color-primary);
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 10px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 10px),
+    linear-gradient(135deg, #3272B0 0%, #6B5AAF 100%);
   padding: 14px 16px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
+html[data-theme="dark"] .header {
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 10px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 10px),
+    linear-gradient(135deg, #1A3D6B 0%, #3D2E7A 100%);
+}
+
 .title {
+  font-family: 'Lora', Georgia, serif;
   font-size: 1.375rem;
   font-weight: 700;
   color: #fff;
-  letter-spacing: -0.3px;
+  letter-spacing: 0.01em;
   line-height: 1;
 }
 
@@ -340,7 +351,7 @@ html[data-theme="dark"] .dropdownDanger:hover {
   }
 
   .title {
-    font-size: 1.625rem;
+    font-size: 1.75rem;
   }
 
   .subtitle {

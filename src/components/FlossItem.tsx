@@ -7,10 +7,10 @@ interface Props {
   onPress: () => void
 }
 
-const STATUS_CONFIG: Record<FlossStatus, { label: string; className: string; ariaLabel: string }> = {
-  unowned: { label: '—', className: styles.badgeUnowned, ariaLabel: 'missing' },
-  in_stock: { label: '✓', className: styles.badgeInStock, ariaLabel: 'in stock' },
-  low: { label: '!', className: styles.badgeLow, ariaLabel: 'low' },
+const STATUS_CONFIG: Record<FlossStatus, { label: string; className: string; rowClassName: string; ariaLabel: string }> = {
+  unowned: { label: '—', className: styles.badgeUnowned, rowClassName: '', ariaLabel: 'missing' },
+  in_stock: { label: '✓', className: styles.badgeInStock, rowClassName: styles.rowInStock, ariaLabel: 'in stock' },
+  low: { label: '!', className: styles.badgeLow, rowClassName: styles.rowLow, ariaLabel: 'low' },
 }
 
 function isLightColor(hex: string): boolean {
@@ -25,7 +25,7 @@ export default function FlossItem({ color, status, onPress }: Props) {
   const light = isLightColor(color.hex)
 
   return (
-    <li className={styles.row} onClick={onPress}>
+    <li className={`${styles.row} ${config.rowClassName}`} onClick={onPress}>
       <div
         className={`${styles.swatch} ${light ? styles.swatchLight : ''}`}
         style={{ backgroundColor: color.hex }}
