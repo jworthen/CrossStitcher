@@ -4,6 +4,13 @@ const DB_NAME = 'crossstitcher'
 const DB_VERSION = 1
 const STORE = 'patterns'
 
+export interface GridConfig {
+  originX: number
+  originY: number
+  cellW: number
+  cellH: number
+}
+
 export interface PatternMeta {
   id: string
   name: string
@@ -13,6 +20,7 @@ export interface PatternMeta {
 
 interface StoredPattern extends PatternMeta {
   file: ArrayBuffer
+  gridConfig?: GridConfig
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -64,10 +72,21 @@ function toMeta({ id, name, dateAdded, fileSize }: StoredPattern): PatternMeta {
   return { id, name, dateAdded, fileSize }
 }
 
-export async function loadPatternFile(id: string): Promise<ArrayBuffer | null> {
+export async function loadPatternData(id: string): Promise<{ file: ArrayBuffer; gridConfig?: GridConfig } | null> {
   const db = await openDB()
   const record = await idbGet(db, id)
-  return record?.file ?? null
+  if (!record) return null
+  return { file: record.file, gridConfig: record.gridConfig }
+}
+
+export async function saveGridConfig(id: string, gridConfig: GridConfig | undefined): Promise<void> {
+  const db = await openDB()
+  const record = await idbGet(db, id)
+  if (!record) return
+  const updated: StoredPattern = { ...record }
+  if (gridConfig) updated.gridConfig = gridConfig
+  else delete updated.gridConfig
+  await idbPut(db, updated)
 }
 
 export function usePatterns() {

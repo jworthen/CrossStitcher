@@ -52,12 +52,12 @@ Render patterns in-app so users can read them without leaving.
 - [x] Render a saved PDF as a zoomable, pannable image (pdf.js)
 - [x] Multi-page navigation for patterns that span multiple pages
 
-## Phase 5c — Grid Overlay
+## Phase 5c — Grid Overlay ✅
 The technically complex part. Calibrate a stitch grid over the rendered pattern.
 
-- [ ] User taps two opposite corners of one stitch square to calibrate
-- [ ] App extrapolates cell size and tiles the grid across the full pattern
-- [ ] User enters stitch count (width × height), or app estimates from image dimensions
+- [x] User clicks two opposite corners of one stitch square to calibrate
+- [x] App extrapolates cell size and tiles the grid across the full pattern
+- [x] App estimates stitch count from canvas size ÷ cell size (~W × H display)
 
 ## Phase 5d — Stitch Tracking
 Make the grid interactive.
@@ -65,6 +65,15 @@ Make the grid interactive.
 - [ ] Tap a grid square to mark it complete (toggle)
 - [ ] Overall % complete progress bar
 - [ ] Progress saves per pattern (multiple patterns supported)
+
+## Phase 5f — Pattern Metadata
+Let users document their patterns properly. Currently patterns are named from the PDF filename, which is often an order number or garbled string.
+
+- [ ] Edit pattern name (in-place, from the library list or viewer header)
+- [ ] Designer / brand field (e.g., "Dimensions", "Anchor", "indie designer name")
+- [ ] Fabric type & count (e.g., 14-count Aida, 28-count evenweave)
+- [ ] Notes field (free text — source URL, purchase date, kit contents, etc.)
+- [ ] Display designer name as a subtitle under the pattern name in the library
 
 ## Phase 5e — Color List
 Manual entry of a pattern's color requirements. Unlocks Phase 6 inventory integration.
