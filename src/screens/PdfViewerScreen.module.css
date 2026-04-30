@@ -105,6 +105,21 @@ html[data-theme="dark"] .header {
   flex-direction: column;
 }
 
+.scanBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.scanResult {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
 /* ── Grid toolbar ────────────────────────────────────── */
 
 .toolbar {

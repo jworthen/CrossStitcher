@@ -5,6 +5,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { loadPatternData, saveGridConfig, saveProgress, savePatternColors } from '../hooks/usePatterns'
 import type { GridConfig, PatternColor } from '../hooks/usePatterns'
+import { DMC_COLORS } from '../data/dmcColors'
 import PatternColorList from '../components/PatternColorList'
 import styles from './PdfViewerScreen.module.css'
 
@@ -46,6 +47,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [patternColors, setPatternColors] = useState<PatternColor[]>([])
   const [calibState, setCalibState] = useState<CalibState>({ phase: 'off' })
   const [viewTab, setViewTab] = useState<'pattern' | 'colors'>('pattern')
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
 
@@ -148,6 +151,47 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     saveProgress(patternId, {})
   }
 
+  const scanPdfForColors = async () => {
+    if (!pdf) return
+    setScanning(true)
+    setScanResult(null)
+    const dmcSet = new Map(DMC_COLORS.map((c) => [c.number.toLowerCase(), c.number]))
+    const found = new Set<string>()
+
+    for (let p = 1; p <= numPages; p++) {
+      const page = await pdf.getPage(p)
+      const textContent = await page.getTextContent()
+      for (const item of textContent.items) {
+        if (!('str' in item)) continue
+        const tokens = item.str.split(/[\s,;/()\[\]]+/)
+        for (const token of tokens) {
+          const t = token.trim().toLowerCase()
+          if (t && dmcSet.has(t)) found.add(dmcSet.get(t)!)
+        }
+      }
+    }
+
+    const existingNums = new Set(patternColors.map((c) => c.dmcNumber.toLowerCase()))
+    const added: PatternColor[] = []
+    for (const num of found) {
+      if (!existingNums.has(num.toLowerCase())) {
+        added.push({ dmcNumber: num, done: false })
+      }
+    }
+
+    if (added.length > 0) {
+      const next = [...patternColors, ...added]
+      setPatternColors(next)
+      savePatternColors(patternId, next)
+      setScanResult(`Found ${found.size} color${found.size !== 1 ? 's' : ''} — added ${added.length} new`)
+    } else if (found.size > 0) {
+      setScanResult(`Found ${found.size} color${found.size !== 1 ? 's' : ''} — already in list`)
+    } else {
+      setScanResult('No DMC numbers found in PDF text')
+    }
+    setScanning(false)
+  }
+
   const stitchW = canvasSize && gridConfig ? Math.round(canvasSize.w / gridConfig.cellW) : null
   const stitchH = canvasSize && gridConfig ? Math.round(canvasSize.h / gridConfig.cellH) : null
   const estimatedTotal = stitchW && stitchH ? stitchW * stitchH : 0
@@ -230,6 +274,18 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       {/* Color list — Colors tab */}
       {viewTab === 'colors' && (
         <div className={styles.colorListArea}>
+          {pdf && (
+            <div className={styles.scanBar}>
+              <button
+                className={`${styles.toolbarBtn} ${styles.toolbarBtnPrimary}`}
+                onClick={scanPdfForColors}
+                disabled={scanning}
+              >
+                {scanning ? 'Scanning…' : 'Scan PDF'}
+              </button>
+              {scanResult && <span className={styles.scanResult}>{scanResult}</span>}
+            </div>
+          )}
           <PatternColorList
             colors={patternColors}
             onChange={(colors) => {
