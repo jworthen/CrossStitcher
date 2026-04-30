@@ -28,7 +28,17 @@
 - [ ] Compact / Comfortable / Spacious density toggle
 - [x] Header gradient or decorative pattern
 
-## Phase 4 — PDF Pattern Viewer
+## Phase 4 — Marketing & Landing Page
+A public-facing website to establish CrossStitcher's identity and attract users. Key differentiator to lead with: free, no account, works in any browser right now — versus competitors still in waitlist/beta.
+
+- [ ] Hero section: tagline, app screenshot, CTA ("Open the App")
+- [ ] Feature highlights: inventory tracking, sort/filter, dark mode, CSV export
+- [ ] "How it works" — 3-step walkthrough (search → tap to track → export)
+- [ ] Competitive positioning: free forever, no install, no account, no subscription
+- [ ] Roadmap teaser: what's coming (pattern viewer, shopping list)
+- [ ] Responsive design, dark mode support
+
+## Phase 5 — PDF Pattern Viewer
 The core differentiator. Pattern Keeper does not support PDF import.
 
 **Scope:** Digital PDFs only (e.g. purchased patterns from Etsy, designer websites). Scanned/photographed patterns are out of scope — digital PDFs have mathematically perfect, consistent grids which makes reliable grid detection possible.
@@ -50,24 +60,31 @@ The core differentiator. Pattern Keeper does not support PDF import.
 - [ ] Per-color progress: stitches done vs remaining per DMC color
 - [ ] Save progress per pattern (multiple patterns supported)
 
-## Phase 5 — Inventory + Pattern Integration
+## Phase 6 — Inventory + Pattern Integration
 - [ ] Cross-reference pattern color requirements against your inventory
 - [ ] Shopping list: what you need to buy before starting a pattern
 - [ ] "Can I start this?" — instant answer based on current stock
 - [ ] Mark shopping list items as bought → auto-update inventory
 
-## Phase 6 — Sync & Extras
+## Phase 7 — AI & Camera Features
+Inspired by competitors. Requires browser camera access (WebRTC) and an AI/vision backend.
+
+- [ ] **Barcode scanning** — point camera at a floss skein's barcode to add it to inventory instantly
+- [ ] **AI legend scanning** — photograph a pattern's color key; AI extracts DMC numbers and cross-references against your stash
+- [ ] **Shopping list from legend scan** — auto-generate what to buy based on a scanned legend vs. current inventory
+
+## Phase 8 — Sync & Extras
 - [ ] Cloud backup / sync inventory and patterns across devices
 - [ ] Share shopping list or pattern progress
 - [ ] Notes per color (brand, where purchased, substitute colors)
 
-## Phase 7 — Multi-Brand Thread Support
+## Phase 9 — Multi-Brand Thread Support
 - [ ] Add inventory support for other popular brands: Anchor, J&P Coats, Madeira, Cosmo, Weeks Dye Works, The Gentle Art
 - [ ] Cross-brand conversion charts (e.g. DMC 321 ↔ Anchor 9046)
 - [ ] User can set a preferred brand per pattern or globally
 - [ ] Patterns that list multiple brand codes show all equivalents
 
-## Phase 8 — Community (Nice to Have)
+## Phase 10 — Community (Nice to Have)
 Requires a backend and user accounts.
 
 - [ ] User profiles
