@@ -273,7 +273,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           const safeTopPdf = (rowKey + aboveY) / 2
           const botPdf = rowKey - CROP_PAD
           const side = safeTopPdf - botPdf  // square side in PDF points
-          cropX = Math.max(0, (symItem.x - CROP_PAD) * OFFSCREEN_SCALE)
+          cropX = symItem.x * OFFSCREEN_SCALE  // no left padding — x is the glyph start
           // PDF y-origin is bottom-left; canvas y-origin is top-left
           cropY = Math.max(0, viewport.height - safeTopPdf * OFFSCREEN_SCALE)
           cropW = Math.min(side * OFFSCREEN_SCALE, viewport.width - cropX)
