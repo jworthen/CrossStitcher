@@ -356,7 +356,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       }
       const pageEntries: PageEntry[] = []
 
-      for (const rowItems of rowMap.values()) {
+      // Sorted row baselines (ascending PDF y = bottom-to-top) used to find the
+      // row immediately above each legend row so the crop never bleeds into it.
+      const sortedRowYs = Array.from(rowMap.keys()).sort((a, b) => a - b)
+
+      for (const [rowKey, rowItems] of rowMap.entries()) {
         rowItems.sort((a, b) => a.x - b.x)
 
         let dmcNum: string | null = null
@@ -394,18 +398,24 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           if (n >= 1) { skeinCount = n; break }
         }
 
-        // Use a square region so the output image isn't distorted.
-        // item.height often includes line leading above the glyph, not just the visible cap
-        // height. Using 0.75× prevents the crop from bleeding into the row above.
+        // Crop a square around the symbol. Use the midpoint between this row's
+        // baseline and the row above as the top boundary — this is exact regardless
+        // of how item.height relates to the actual glyph height or line spacing.
         const symItem = dmcItemIdx > 0 ? rowItems[0] : null
         let cropX = 0, cropY = 0, cropW = 0, cropH = 0, hasCrop = false
         if (symItem) {
           const symH = symItem.h > 0 ? symItem.h : 10
-          const capH = symH * 0.75  // approximate visible glyph height above baseline
-          const side = capH + CROP_PAD * 2  // square side in PDF points
+          const thisIdx = sortedRowYs.findIndex((ry) => Math.abs(ry - rowKey) < 1)
+          const aboveY = thisIdx + 1 < sortedRowYs.length
+            ? sortedRowYs[thisIdx + 1]
+            : rowKey + symH * 2
+          // safeTop: midpoint to the row above — guaranteed not to bleed
+          const safeTopPdf = (rowKey + aboveY) / 2
+          const botPdf = rowKey - CROP_PAD
+          const side = safeTopPdf - botPdf  // square side in PDF points
           cropX = Math.max(0, (symItem.x - CROP_PAD) * OFFSCREEN_SCALE)
           // PDF y-origin is bottom-left; canvas y-origin is top-left
-          cropY = Math.max(0, viewport.height - (symItem.y + capH + CROP_PAD) * OFFSCREEN_SCALE)
+          cropY = Math.max(0, viewport.height - safeTopPdf * OFFSCREEN_SCALE)
           cropW = Math.min(side * OFFSCREEN_SCALE, viewport.width - cropX)
           cropH = Math.min(side * OFFSCREEN_SCALE, viewport.height - cropY)
           hasCrop = cropW > 4 && cropH > 4
