@@ -103,7 +103,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       canvas.style.height = `${cssH}px`
       const ctx = canvas.getContext('2d')!
       return page.render({ canvas, canvasContext: ctx, viewport }).promise
-        .then(() => { if (!cancelled) { setCanvasSize({ w: cssW, h: cssH }); detectGridLines() } })
+        .then(() => { if (!cancelled) { setCanvasSize({ w: cssW, h: cssH }); setTimeout(detectGridLines, 0) } })
     }).then(() => {
       if (cancelled) return
       setRendering(false)
@@ -131,9 +131,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     return { x: (touch.clientX - rect.left) / zoom, y: (touch.clientY - rect.top) / zoom }
   }
 
-  // Analyse the rendered canvas to find the cross-stitch grid period and phase.
-  // Uses autocorrelation on CSS-resolution brightness profiles — robust even when
-  // symbol fills obscure individual grid lines.
+  // Scan the rendered canvas to find where the cross-stitch grid lines are.
+  // Strategy: for every (period, phase) pair, average the brightness at positions
+  // {phase, phase+period, phase+2*period, …}. The true grid gives the darkest
+  // average because every sampled position lands on a dark grid line.
+  // Iterating period from small→large ensures the fundamental period wins over harmonics.
   const detectGridLines = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || canvas.width === 0 || canvas.height === 0) return
@@ -147,60 +149,65 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
     const data = ctx.getImageData(0, 0, CW, CH).data
 
-    // Build CSS-resolution brightness profiles in one pixel pass
-    const rowSum = new Float64Array(cssH)
-    const colSum = new Float64Array(cssW)
-    const rowN   = new Int32Array(cssH)
-    const colN   = new Int32Array(cssW)
+    // Build CSS-resolution brightness profiles in one row-major pixel pass.
+    // Every canvas pixel contributes to both its CSS row and CSS column bucket.
+    const rowAcc = new Float64Array(cssH)
+    const colAcc = new Float64Array(cssW)
 
     for (let y = 0; y < CH; y++) {
       const cy = (y / RENDER_SCALE) | 0
+      const base = y * CW * 4
       for (let x = 0; x < CW; x++) {
-        const i = (y * CW + x) * 4
+        const i = base + x * 4
         const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
-        rowSum[cy] += lum; rowN[cy]++
-        colSum[(x / RENDER_SCALE) | 0] += lum; colN[(x / RENDER_SCALE) | 0]++
+        rowAcc[cy] += lum
+        colAcc[(x / RENDER_SCALE) | 0] += lum
       }
     }
 
-    const rowBright = Float32Array.from({ length: cssH }, (_, i) => rowN[i] ? rowSum[i] / rowN[i] : 255)
-    const colBright = Float32Array.from({ length: cssW }, (_, i) => colN[i] ? colSum[i] / colN[i] : 255)
+    // Normalise: each CSS row bucket holds CW*RENDER_SCALE values; each CSS col holds CH*RENDER_SCALE
+    const rowNorm = CW * RENDER_SCALE
+    const colNorm = CH * RENDER_SCALE
+    const rowBright = new Float64Array(cssH)
+    const colBright = new Float64Array(cssW)
+    for (let i = 0; i < cssH; i++) rowBright[i] = rowAcc[i] / rowNorm
+    for (let i = 0; i < cssW; i++) colBright[i] = colAcc[i] / colNorm
 
-    // Find dominant period via normalised autocorrelation
-    const findPeriod = (profile: Float32Array, minP: number, maxP: number): number | null => {
+    // Exhaustive (period, phase) search — finds the darkest regular sampling of a profile.
+    const findBestGrid = (profile: Float64Array, minP: number, maxP: number) => {
       const N = profile.length
-      const mean = profile.reduce((a, v) => a + v, 0) / N
-      const variance = profile.reduce((a, v) => a + (v - mean) ** 2, 0) / N
-      if (variance < 1) return null
+      let mean = 0
+      for (let i = 0; i < N; i++) mean += profile[i]
+      mean /= N
+      let variance = 0
+      for (let i = 0; i < N; i++) variance += (profile[i] - mean) ** 2
+      const std = Math.sqrt(variance / N)
+      if (std < 0.5) return null  // image too uniform — no detectable grid
 
-      let best = -1, bestR = 0.1
-      for (let lag = minP; lag <= Math.min(maxP, (N / 2) | 0); lag++) {
-        let corr = 0
-        const n = N - lag
-        for (let i = 0; i < n; i++) corr += (profile[i] - mean) * (profile[i + lag] - mean)
-        const r = corr / (n * variance)
-        if (r > bestR) { bestR = r; best = lag }
+      let bestScore = 0.05  // require at least 5% of σ contrast
+      let bestP = -1, bestPhase = -1
+
+      for (let P = minP; P <= Math.min(maxP, (N / 3) | 0); P++) {
+        for (let phase = 0; phase < P; phase++) {
+          let sum = 0, count = 0
+          for (let pos = phase; pos < N; pos += P) { sum += profile[pos]; count++ }
+          if (count < 3) continue
+          const score = (mean - sum / count) / std
+          if (score > bestScore) { bestScore = score; bestP = P; bestPhase = phase }
+        }
       }
-      return best > 0 ? best : null
+
+      return bestP > 0 ? { period: bestP, phase: bestPhase } : null
     }
 
-    const rowPeriod = findPeriod(rowBright, 3, Math.min(60, (cssH / 3) | 0))
-    const colPeriod = findPeriod(colBright, 3, Math.min(60, (cssW / 3) | 0))
-    if (!rowPeriod || !colPeriod) { setDetectedLines(null); return }
-
-    // Phase: darkest position within the first period
-    const findPhase = (profile: Float32Array, period: number) => {
-      let minV = Infinity, phase = 0
-      for (let i = 0; i < Math.min(period, profile.length); i++) {
-        if (profile[i] < minV) { minV = profile[i]; phase = i }
-      }
-      return phase
-    }
+    const rowGrid = findBestGrid(rowBright, 3, Math.min(60, (cssH / 3) | 0))
+    const colGrid = findBestGrid(colBright, 3, Math.min(60, (cssW / 3) | 0))
+    if (!rowGrid || !colGrid) { setDetectedLines(null); return }
 
     const h: number[] = []
-    for (let y = findPhase(rowBright, rowPeriod); y < cssH; y += rowPeriod) h.push(y)
+    for (let y = rowGrid.phase; y < cssH; y += rowGrid.period) h.push(y)
     const v: number[] = []
-    for (let x = findPhase(colBright, colPeriod); x < cssW; x += colPeriod) v.push(x)
+    for (let x = colGrid.phase; x < cssW; x += colGrid.period) v.push(x)
 
     setDetectedLines({ h, v })
   }, [])
@@ -699,6 +706,27 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                               style={{ pointerEvents: 'none' }}
                             />
                           )}
+                        </>
+                      )
+                    })()}
+                    {/* Live grid preview while placing corner2 — shows exactly where the grid will land */}
+                    {calibState.phase === 'corner2' && hoverPos && (() => {
+                      const sp = getSnapPos(hoverPos.x, hoverPos.y) ?? hoverPos
+                      const cellW = Math.abs(sp.x - calibState.c1.x)
+                      const cellH = Math.abs(sp.y - calibState.c1.y)
+                      if (cellW < 2 || cellH < 2) return null
+                      const originX = Math.min(calibState.c1.x, sp.x)
+                      const originY = Math.min(calibState.c1.y, sp.y)
+                      return (
+                        <>
+                          {gridPositions(originX, cellW, canvasSize.w).map((x, i) => (
+                            <line key={`pv${i}`} x1={x} y1={0} x2={x} y2={canvasSize.h}
+                              stroke="rgba(59,130,246,0.3)" strokeWidth={0.75} strokeDasharray={`${3 / zoomScale},${3 / zoomScale}`} />
+                          ))}
+                          {gridPositions(originY, cellH, canvasSize.h).map((y, i) => (
+                            <line key={`ph${i}`} x1={0} y1={y} x2={canvasSize.w} y2={y}
+                              stroke="rgba(59,130,246,0.3)" strokeWidth={0.75} strokeDasharray={`${3 / zoomScale},${3 / zoomScale}`} />
+                          ))}
                         </>
                       )
                     })()}
