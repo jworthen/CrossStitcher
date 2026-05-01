@@ -50,6 +50,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<string | null>(null)
   const [zoomScale, setZoomScale] = useState(1)
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
   // Metadata fields
   const [metaName, setMetaName] = useState(patternName)
   const [designer, setDesigner] = useState('')
@@ -112,13 +113,32 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     return () => { cancelled = true }
   }, [pdf, pageNum])
 
-  // Unified SVG click handler — calibration or stitch toggling
-  const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!canvasSize) return
+  const getSvgCoords = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!canvasSize) return null
     const rect = e.currentTarget.getBoundingClientRect()
     const zoom = rect.width / canvasSize.w
-    const x = (e.clientX - rect.left) / zoom
-    const y = (e.clientY - rect.top) / zoom
+    return { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom }
+  }
+
+  const getSvgTouchCoords = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (!canvasSize) return null
+    const touch = e.touches[0] ?? e.changedTouches[0]
+    if (!touch) return null
+    const rect = e.currentTarget.getBoundingClientRect()
+    const zoom = rect.width / canvasSize.w
+    return { x: (touch.clientX - rect.left) / zoom, y: (touch.clientY - rect.top) / zoom }
+  }
+
+  const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => setHoverPos(getSvgCoords(e))
+  const handleSvgMouseLeave = () => setHoverPos(null)
+  const handleSvgTouchStart = (e: React.TouchEvent<SVGSVGElement>) => setHoverPos(getSvgTouchCoords(e))
+  const handleSvgTouchEnd = () => setHoverPos(null)
+
+  // Unified SVG click handler — calibration or stitch toggling
+  const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const pos = getSvgCoords(e)
+    if (!pos) return
+    const { x, y } = pos
 
     if (isCalibrating) {
       if (calibState.phase === 'corner1') {
@@ -469,6 +489,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                       cursor: isCalibrating ? 'crosshair' : (gridConfig ? 'pointer' : 'default'),
                     }}
                     onClick={handleSvgClick}
+                    onMouseMove={handleSvgMouseMove}
+                    onMouseLeave={handleSvgMouseLeave}
+                    onTouchStart={handleSvgTouchStart}
+                    onTouchEnd={handleSvgTouchEnd}
+                    onTouchCancel={handleSvgTouchEnd}
                   >
                     {gridConfig && (
                       <>
@@ -495,10 +520,62 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                         ))}
                       </>
                     )}
+                    {/* Hover cell highlight + snap dot — shows which cell will be toggled and nearest intersection */}
+                    {!isCalibrating && gridConfig && hoverPos && (() => {
+                      const col = Math.floor((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
+                      const row = Math.floor((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
+                      const rx = gridConfig.originX + col * gridConfig.cellW
+                      const ry = gridConfig.originY + row * gridConfig.cellH
+                      const isCompleted = !!progress[`${col},${row}`]
+                      const snapCol = Math.round((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
+                      const snapRow = Math.round((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
+                      const sx = gridConfig.originX + snapCol * gridConfig.cellW
+                      const sy = gridConfig.originY + snapRow * gridConfig.cellH
+                      return (
+                        <>
+                          <rect
+                            x={rx + 0.5} y={ry + 0.5}
+                            width={gridConfig.cellW - 1} height={gridConfig.cellH - 1}
+                            fill={isCompleted ? 'rgba(239,68,68,0.25)' : 'rgba(59,130,246,0.2)'}
+                            stroke={isCompleted ? 'rgba(239,68,68,0.6)' : 'rgba(59,130,246,0.6)'}
+                            strokeWidth={1}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                          <circle
+                            cx={sx} cy={sy}
+                            r={3 / zoomScale}
+                            fill="rgba(59,130,246,0.9)"
+                            stroke="white"
+                            strokeWidth={1 / zoomScale}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        </>
+                      )
+                    })()}
                     {calibState.phase === 'corner2' && (
                       <circle cx={calibState.c1.x} cy={calibState.c1.y} r={5 / zoomScale}
                         fill="rgba(59,130,246,0.85)" stroke="white" strokeWidth={1.5 / zoomScale} />
                     )}
+                    {/* Live cursor dot during calibration — snaps to nearest grid intersection if one exists */}
+                    {isCalibrating && hoverPos && (() => {
+                      let cx = hoverPos.x, cy = hoverPos.y
+                      if (gridConfig) {
+                        const snapCol = Math.round((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
+                        const snapRow = Math.round((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
+                        cx = gridConfig.originX + snapCol * gridConfig.cellW
+                        cy = gridConfig.originY + snapRow * gridConfig.cellH
+                      }
+                      return (
+                        <circle
+                          cx={cx} cy={cy}
+                          r={4 / zoomScale}
+                          fill="rgba(59,130,246,0.55)"
+                          stroke="white"
+                          strokeWidth={1 / zoomScale}
+                          style={{ pointerEvents: 'none' }}
+                        />
+                      )
+                    })()}
                   </svg>
                 )}
               </div>
