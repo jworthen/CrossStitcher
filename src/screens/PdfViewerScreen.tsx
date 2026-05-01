@@ -228,7 +228,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     setDetectedLines({ h, v })
   }, [])
 
-  // Auto-calibrate: when detection succeeds and no grid has been set yet, apply it automatically.
+  // Auto-calibrate: when detection succeeds and no grid is set, apply it automatically.
   useEffect(() => {
     if (!detectedLines || gridConfig) return
     const { h, v } = detectedLines
@@ -241,7 +241,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     }
     setGridConfig(config)
     saveGridConfig(patternId, config)
-  }, [detectedLines])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [detectedLines, gridConfig])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Return the nearest snappable intersection: detected PDF grid first, overlay grid fallback.
   const getSnapPos = (x: number, y: number): { x: number; y: number } | null => {
@@ -313,8 +313,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
   const handleClearGrid = () => {
     setGridConfig(undefined)
+    setDetectedLines(null)
     setProgress({})
     clearGridAndProgress(patternId)
+    // Re-run detection so auto-calibration fires with a fresh result.
+    setTimeout(detectGridLines, 0)
   }
 
   const scanPdfForColors = async () => {
