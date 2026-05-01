@@ -520,39 +520,62 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                         ))}
                       </>
                     )}
-                    {/* Hover cell highlight — shows which cell will be toggled on next click */}
+                    {/* Hover cell highlight + snap dot — shows which cell will be toggled and nearest intersection */}
                     {!isCalibrating && gridConfig && hoverPos && (() => {
                       const col = Math.floor((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
                       const row = Math.floor((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
                       const rx = gridConfig.originX + col * gridConfig.cellW
                       const ry = gridConfig.originY + row * gridConfig.cellH
                       const isCompleted = !!progress[`${col},${row}`]
+                      const snapCol = Math.round((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
+                      const snapRow = Math.round((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
+                      const sx = gridConfig.originX + snapCol * gridConfig.cellW
+                      const sy = gridConfig.originY + snapRow * gridConfig.cellH
                       return (
-                        <rect
-                          x={rx + 0.5} y={ry + 0.5}
-                          width={gridConfig.cellW - 1} height={gridConfig.cellH - 1}
-                          fill={isCompleted ? 'rgba(239,68,68,0.25)' : 'rgba(59,130,246,0.2)'}
-                          stroke={isCompleted ? 'rgba(239,68,68,0.6)' : 'rgba(59,130,246,0.6)'}
-                          strokeWidth={1}
-                          style={{ pointerEvents: 'none' }}
-                        />
+                        <>
+                          <rect
+                            x={rx + 0.5} y={ry + 0.5}
+                            width={gridConfig.cellW - 1} height={gridConfig.cellH - 1}
+                            fill={isCompleted ? 'rgba(239,68,68,0.25)' : 'rgba(59,130,246,0.2)'}
+                            stroke={isCompleted ? 'rgba(239,68,68,0.6)' : 'rgba(59,130,246,0.6)'}
+                            strokeWidth={1}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                          <circle
+                            cx={sx} cy={sy}
+                            r={3 / zoomScale}
+                            fill="rgba(59,130,246,0.9)"
+                            stroke="white"
+                            strokeWidth={1 / zoomScale}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        </>
                       )
                     })()}
                     {calibState.phase === 'corner2' && (
                       <circle cx={calibState.c1.x} cy={calibState.c1.y} r={5 / zoomScale}
                         fill="rgba(59,130,246,0.85)" stroke="white" strokeWidth={1.5 / zoomScale} />
                     )}
-                    {/* Live cursor dot during calibration */}
-                    {isCalibrating && hoverPos && (
-                      <circle
-                        cx={hoverPos.x} cy={hoverPos.y}
-                        r={4 / zoomScale}
-                        fill="rgba(59,130,246,0.55)"
-                        stroke="white"
-                        strokeWidth={1 / zoomScale}
-                        style={{ pointerEvents: 'none' }}
-                      />
-                    )}
+                    {/* Live cursor dot during calibration — snaps to nearest grid intersection if one exists */}
+                    {isCalibrating && hoverPos && (() => {
+                      let cx = hoverPos.x, cy = hoverPos.y
+                      if (gridConfig) {
+                        const snapCol = Math.round((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
+                        const snapRow = Math.round((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
+                        cx = gridConfig.originX + snapCol * gridConfig.cellW
+                        cy = gridConfig.originY + snapRow * gridConfig.cellH
+                      }
+                      return (
+                        <circle
+                          cx={cx} cy={cy}
+                          r={4 / zoomScale}
+                          fill="rgba(59,130,246,0.55)"
+                          stroke="white"
+                          strokeWidth={1 / zoomScale}
+                          style={{ pointerEvents: 'none' }}
+                        />
+                      )
+                    })()}
                   </svg>
                 )}
               </div>
