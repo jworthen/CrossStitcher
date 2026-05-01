@@ -173,9 +173,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     for (let i = 0; i < cssH; i++) rowBright[i] = rowAcc[i] / rowNorm
     for (let i = 0; i < cssW; i++) colBright[i] = colAcc[i] / colNorm
 
-    // Exhaustive (period, phase) search — finds the darkest regular sampling of a profile.
+    // Returns the SMALLEST period where the best-phase score exceeds a threshold.
+    // Iterating small→large finds the fundamental cell period before bold-line harmonics.
     const findBestGrid = (profile: Float64Array, minP: number, maxP: number) => {
       const N = profile.length
+      if (N < minP * 3) return null
       let mean = 0
       for (let i = 0; i < N; i++) mean += profile[i]
       mean /= N
@@ -184,30 +186,44 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       const std = Math.sqrt(variance / N)
       if (std < 0.5) return null  // image too uniform — no detectable grid
 
-      let bestScore = 0.05  // require at least 5% of σ contrast
-      let bestP = -1, bestPhase = -1
+      const THRESHOLD = 0.9  // fundamental lines score ~1.5-2×; bold-line sub-harmonics ~0.5×
 
       for (let P = minP; P <= Math.min(maxP, (N / 3) | 0); P++) {
+        let bestScore = 0, bestPhase = -1
         for (let phase = 0; phase < P; phase++) {
           let sum = 0, count = 0
           for (let pos = phase; pos < N; pos += P) { sum += profile[pos]; count++ }
           if (count < 3) continue
           const score = (mean - sum / count) / std
-          if (score > bestScore) { bestScore = score; bestP = P; bestPhase = phase }
+          if (score > bestScore) { bestScore = score; bestPhase = phase }
+        }
+        if (bestScore > THRESHOLD && bestPhase >= 0) {
+          return { period: P, phase: bestPhase }
         }
       }
 
-      return bestP > 0 ? { period: bestP, phase: bestPhase } : null
+      return null
     }
 
-    const rowGrid = findBestGrid(rowBright, 3, Math.min(60, (cssH / 3) | 0))
-    const colGrid = findBestGrid(colBright, 3, Math.min(60, (cssW / 3) | 0))
+    // Analyse the central 70% to skip headers, footers, and legend areas at page edges.
+    const rowCropStart = (cssH * 0.15) | 0
+    const rowSub = rowBright.subarray(rowCropStart, (cssH * 0.85) | 0)
+    const rowGrid = findBestGrid(rowSub, 3, Math.min(60, (rowSub.length / 3) | 0))
+
+    const colCropStart = (cssW * 0.15) | 0
+    const colSub = colBright.subarray(colCropStart, (cssW * 0.85) | 0)
+    const colGrid = findBestGrid(colSub, 3, Math.min(60, (colSub.length / 3) | 0))
+
     if (!rowGrid || !colGrid) { setDetectedLines(null); return }
 
+    // Adjust phase back to full-page absolute coordinates.
+    const rowPhase = (rowGrid.phase + rowCropStart) % rowGrid.period
+    const colPhase = (colGrid.phase + colCropStart) % colGrid.period
+
     const h: number[] = []
-    for (let y = rowGrid.phase; y < cssH; y += rowGrid.period) h.push(y)
+    for (let y = rowPhase; y < cssH; y += rowGrid.period) h.push(y)
     const v: number[] = []
-    for (let x = colGrid.phase; x < cssW; x += colGrid.period) v.push(x)
+    for (let x = colPhase; x < cssW; x += colGrid.period) v.push(x)
 
     setDetectedLines({ h, v })
   }, [])
