@@ -381,17 +381,18 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           if (n >= 1) { skeinCount = n; break }
         }
 
-        // Crop the symbol column from the rendered page.
-        // Use a square region (symH × symH) so the output image isn't distorted when
-        // drawn onto the square CROP_PX × CROP_PX canvas.
+        // Use a square region so the output image isn't distorted.
+        // item.height often includes line leading above the glyph, not just the visible cap
+        // height. Using 0.75× prevents the crop from bleeding into the row above.
         const symItem = dmcItemIdx > 0 ? rowItems[0] : null
         let cropX = 0, cropY = 0, cropW = 0, cropH = 0, hasCrop = false
         if (symItem) {
           const symH = symItem.h > 0 ? symItem.h : 10
-          const side = symH + CROP_PAD * 2  // square side in PDF points
+          const capH = symH * 0.75  // approximate visible glyph height above baseline
+          const side = capH + CROP_PAD * 2  // square side in PDF points
           cropX = Math.max(0, (symItem.x - CROP_PAD) * OFFSCREEN_SCALE)
           // PDF y-origin is bottom-left; canvas y-origin is top-left
-          cropY = Math.max(0, viewport.height - (symItem.y + symH + CROP_PAD) * OFFSCREEN_SCALE)
+          cropY = Math.max(0, viewport.height - (symItem.y + capH + CROP_PAD) * OFFSCREEN_SCALE)
           cropW = Math.min(side * OFFSCREEN_SCALE, viewport.width - cropX)
           cropH = Math.min(side * OFFSCREEN_SCALE, viewport.height - cropY)
           hasCrop = cropW > 4 && cropH > 4
