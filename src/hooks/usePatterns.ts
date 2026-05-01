@@ -157,6 +157,18 @@ export async function saveGridConfig(id: string, gridConfig: GridConfig | undefi
   await idbPut(db, updated)
 }
 
+// Clears both gridConfig and progress in one atomic read-modify-write to avoid
+// the race condition that occurs when the two separate saves run concurrently.
+export async function clearGridAndProgress(id: string): Promise<void> {
+  const db = await openDB()
+  const record = await idbGet(db, id)
+  if (!record) return
+  const updated: StoredPattern = { ...record }
+  delete updated.gridConfig
+  delete updated.progress
+  await idbPut(db, updated)
+}
+
 export function usePatterns() {
   const [patterns, setPatterns] = useState<PatternMeta[]>([])
   const [loading, setLoading] = useState(true)
