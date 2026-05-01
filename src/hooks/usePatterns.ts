@@ -9,6 +9,7 @@ export interface PatternColor {
   stitchCount?: number
   done: boolean
   symbol?: string
+  symbolImage?: string  // base64 PNG cropped from the rendered PDF legend
 }
 
 export interface GridConfig {

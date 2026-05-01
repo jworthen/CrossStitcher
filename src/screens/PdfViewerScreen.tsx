@@ -187,14 +187,22 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     setScanResult(null)
 
     const dmcMap = new Map(DMC_COLORS.map((c) => [c.number.toLowerCase(), c.number]))
+    const dmcColorNames = new Set(DMC_COLORS.map((c) => c.name.toLowerCase()))
     const Y_TOL = 4
+    const OFFSCREEN_SCALE = 2
+    const CROP_PX = 32
 
-    interface RowItem { str: string; x: number; y: number }
+    interface RowItem { str: string; x: number; y: number; h: number }
 
-    // Collect text items with x/y positions across all pages
-    const allRows: RowItem[][] = []
+    const results = new Map<string, {
+      symbolText?: string
+      symbolImage?: string
+      stitchCount?: number
+    }>()
+
     for (let p = 1; p <= numPages; p++) {
       const page = await pdf.getPage(p)
+      const viewport = page.getViewport({ scale: OFFSCREEN_SCALE })
       const textContent = await page.getTextContent()
 
       const items: RowItem[] = []
@@ -202,11 +210,12 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         if (!('str' in item)) continue
         const str = item.str.trim()
         if (!str) continue
-        const [, , , , x, y] = item.transform as number[]
-        items.push({ str, x, y })
+        const tf = item.transform as number[]
+        const x = tf[4], y = tf[5]
+        const h = (item as unknown as { height: number }).height || Math.abs(tf[0]) || 10
+        items.push({ str, x, y, h })
       }
 
-      // Group items into rows by Y coordinate
       const rowMap = new Map<number, RowItem[]>()
       for (const item of items) {
         let matched: number | null = null
@@ -216,66 +225,115 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         if (matched !== null) rowMap.get(matched)!.push(item)
         else rowMap.set(item.y, [item])
       }
+
+      type PageEntry = {
+        dmcNum: string
+        symbolText?: string
+        stitchCount?: number
+        cropX: number; cropY: number; cropW: number; cropH: number
+        hasCrop: boolean
+      }
+      const pageEntries: PageEntry[] = []
+
       for (const rowItems of rowMap.values()) {
-        allRows.push(rowItems.sort((a, b) => a.x - b.x))
-      }
-    }
+        rowItems.sort((a, b) => a.x - b.x)
 
-    // Parse each row for DMC number + symbol + stitch count
-    type Entry = { symbol?: string; stitchCount?: number }
-    const found = new Map<string, Entry>()
-    const dmcColorNames = new Set(DMC_COLORS.map((c) => c.name.toLowerCase()))
+        let dmcNum: string | null = null
+        let dmcItemIdx = -1
 
-    for (const row of allRows) {
-      // Locate DMC number in this row
-      let dmcNum: string | null = null
-      let dmcItemIdx = -1
-      outer: for (let i = 0; i < row.length; i++) {
-        for (const token of row[i].str.split(/[\s,;/()\[\]]+/)) {
-          const t = token.trim().toLowerCase()
-          if (t && dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = i; break outer }
+        // Primary: find literal "DMC" brand label → next item is the color number.
+        // This avoids misidentifying the strand count (e.g. "2") as a DMC color.
+        const dmcLabelIdx = rowItems.findIndex((it) => it.str.trim() === 'DMC')
+        if (dmcLabelIdx >= 0 && dmcLabelIdx + 1 < rowItems.length) {
+          const next = rowItems[dmcLabelIdx + 1]
+          const t = next.str.trim().toLowerCase()
+          if (dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = dmcLabelIdx + 1 }
         }
-      }
-      if (!dmcNum || found.has(dmcNum)) continue
 
-      const isSymbolCandidate = (t: string) =>
-        t.length > 0 && t.length <= 4 &&
-        !/^\d+$/.test(t) &&
-        !dmcMap.has(t.toLowerCase()) &&
-        !dmcColorNames.has(t.toLowerCase())
-
-      // Symbol: first check tokens before the DMC token within the same item (handles "X 310"),
-      // then fall back to separate items to the left of the DMC column
-      let symbol: string | undefined
-      for (const token of row[dmcItemIdx].str.split(/[\s,;/()\[\]]+/)) {
-        const t = token.trim()
-        if (t.toLowerCase() === dmcNum.toLowerCase()) break
-        if (isSymbolCandidate(t)) { symbol = t; break }
-      }
-      if (!symbol) {
-        for (let i = 0; i < dmcItemIdx; i++) {
-          const str = row[i].str.trim()
-          if (isSymbolCandidate(str)) symbol = str
+        // Fallback: scan tokens left-to-right, skip single-char digits (strand counts like "2")
+        if (!dmcNum) {
+          outer: for (let i = 0; i < rowItems.length; i++) {
+            for (const token of rowItems[i].str.split(/[\s,;/()\[\]]+/)) {
+              const t = token.trim()
+              if (!t || /^\d$/.test(t)) continue
+              if (dmcMap.has(t.toLowerCase())) { dmcNum = dmcMap.get(t.toLowerCase())!; dmcItemIdx = i; break outer }
+            }
+          }
         }
+
+        if (!dmcNum || results.has(dmcNum)) continue
+
+        // Symbol: leftmost item. Digits are intentionally allowed — proprietary symbol fonts
+        // often map glyphs to digit codepoints, so filtering them out drops valid symbols.
+        let symbolText: string | undefined
+        if (dmcItemIdx > 0) {
+          const s = rowItems[0].str.trim()
+          if (s.length > 0 && s.length <= 4 && !dmcMap.has(s.toLowerCase()) && !dmcColorNames.has(s.toLowerCase())) {
+            symbolText = s
+          }
+        }
+
+        // Stitch count: must be 2+ digit integer (avoids strand count "2") and not a DMC number
+        let stitchCount: number | undefined
+        for (const item of rowItems) {
+          const str = item.str.trim()
+          if (!/^\d{2,}$/.test(str) || dmcMap.has(str.toLowerCase())) continue
+          const n = parseInt(str, 10)
+          if (n >= 10) { stitchCount = n; break }
+        }
+
+        // Crop the symbol column from the rendered page
+        const symItem = dmcItemIdx > 0 ? rowItems[0] : null
+        let cropX = 0, cropY = 0, cropW = 0, cropH = 0, hasCrop = false
+        if (symItem) {
+          const symH = symItem.h > 0 ? symItem.h : 10
+          const nextItem = rowItems[1] ?? null
+          const colW = nextItem ? Math.min(nextItem.x - symItem.x, symH * 3) : symH * 2
+          cropX = symItem.x * OFFSCREEN_SCALE
+          // PDF y-origin is bottom-left; canvas y-origin is top-left
+          cropY = viewport.height - (symItem.y + symH) * OFFSCREEN_SCALE
+          cropW = colW * OFFSCREEN_SCALE
+          cropH = symH * 1.5 * OFFSCREEN_SCALE
+          hasCrop = cropX >= 0 && cropY >= 0 && cropW > 4 && cropH > 4 &&
+                    cropX + cropW <= viewport.width && cropY + cropH <= viewport.height
+        }
+
+        pageEntries.push({ dmcNum, symbolText, stitchCount, cropX, cropY, cropW, cropH, hasCrop })
       }
 
-      // Stitch count: a pure integer not in the DMC database
-      let stitchCount: number | undefined
-      for (const item of row) {
-        const str = item.str.trim()
-        if (!/^\d+$/.test(str) || dmcMap.has(str.toLowerCase())) continue
-        const n = parseInt(str, 10)
-        if (n >= 1) { stitchCount = n; break }
-      }
+      if (pageEntries.length === 0) continue
 
-      found.set(dmcNum, { symbol, stitchCount })
+      const offscreen = document.createElement('canvas')
+      offscreen.width = viewport.width
+      offscreen.height = viewport.height
+      const offCtx = offscreen.getContext('2d')!
+      await page.render({ canvas: offscreen, canvasContext: offCtx, viewport }).promise
+
+      for (const entry of pageEntries) {
+        let symbolImage: string | undefined
+        if (entry.hasCrop) {
+          const crop = document.createElement('canvas')
+          crop.width = CROP_PX
+          crop.height = CROP_PX
+          const ctx = crop.getContext('2d')!
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, CROP_PX, CROP_PX)
+          ctx.drawImage(offscreen, entry.cropX, entry.cropY, entry.cropW, entry.cropH,
+                        0, 0, CROP_PX, CROP_PX)
+          symbolImage = crop.toDataURL('image/png')
+        }
+        results.set(entry.dmcNum, { symbolText: entry.symbolText, symbolImage, stitchCount: entry.stitchCount })
+      }
     }
 
     const existingNums = new Set(patternColors.map((c) => c.dmcNumber.toLowerCase()))
     const added: PatternColor[] = []
-    for (const [num, meta] of found) {
+    for (const [num, meta] of results) {
       if (!existingNums.has(num.toLowerCase())) {
-        added.push({ dmcNumber: num, done: false, symbol: meta.symbol, stitchCount: meta.stitchCount })
+        added.push({
+          dmcNumber: num, done: false,
+          symbol: meta.symbolText, symbolImage: meta.symbolImage, stitchCount: meta.stitchCount,
+        })
       }
     }
 
@@ -283,9 +341,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       const next = [...patternColors, ...added]
       setPatternColors(next)
       savePatternColors(patternId, next)
-      setScanResult(`Found ${found.size} color${found.size !== 1 ? 's' : ''} — added ${added.length} new`)
-    } else if (found.size > 0) {
-      setScanResult(`Found ${found.size} color${found.size !== 1 ? 's' : ''} — already in list`)
+      setScanResult(`Found ${results.size} color${results.size !== 1 ? 's' : ''} — added ${added.length} new`)
+    } else if (results.size > 0) {
+      setScanResult(`Found ${results.size} color${results.size !== 1 ? 's' : ''} — already in list`)
     } else {
       setScanResult('No DMC numbers found in PDF text')
     }
