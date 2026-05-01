@@ -49,6 +49,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [viewTab, setViewTab] = useState<'pattern' | 'colors' | 'info'>('pattern')
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<string | null>(null)
+  const [zoomScale, setZoomScale] = useState(1)
   // Metadata fields
   const [metaName, setMetaName] = useState(patternName)
   const [designer, setDesigner] = useState('')
@@ -203,6 +204,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     // Parse each row for DMC number + symbol + stitch count
     type Entry = { symbol?: string; stitchCount?: number }
     const found = new Map<string, Entry>()
+    const dmcColorNames = new Set(DMC_COLORS.map((c) => c.name.toLowerCase()))
 
     for (const row of allRows) {
       // Locate DMC number in this row
@@ -216,15 +218,25 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       }
       if (!dmcNum || found.has(dmcNum)) continue
 
-      // Symbol: shortest non-numeric token ≤6 chars, preferring those left of the DMC column
+      const isSymbolCandidate = (t: string) =>
+        t.length > 0 && t.length <= 4 &&
+        !/^\d+$/.test(t) &&
+        !dmcMap.has(t.toLowerCase()) &&
+        !dmcColorNames.has(t.toLowerCase())
+
+      // Symbol: first check tokens before the DMC token within the same item (handles "X 310"),
+      // then fall back to separate items to the left of the DMC column
       let symbol: string | undefined
-      for (let i = 0; i < row.length; i++) {
-        if (i === dmcItemIdx) continue
-        const str = row[i].str.trim()
-        if (!str || /^\d+$/.test(str) || str.toLowerCase() === dmcNum.toLowerCase()) continue
-        if (str.length > 6) continue
-        symbol = str
-        if (i < dmcItemIdx) break
+      for (const token of row[dmcItemIdx].str.split(/[\s,;/()\[\]]+/)) {
+        const t = token.trim()
+        if (t.toLowerCase() === dmcNum.toLowerCase()) break
+        if (isSymbolCandidate(t)) { symbol = t; break }
+      }
+      if (!symbol) {
+        for (let i = 0; i < dmcItemIdx; i++) {
+          const str = row[i].str.trim()
+          if (isSymbolCandidate(str)) symbol = str
+        }
       }
 
       // Stitch count: a pure integer not in the DMC database
@@ -439,6 +451,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
             centerOnInit
             panning={{ disabled: isCalibrating }}
             doubleClick={{ disabled: isCalibrating, mode: 'zoomIn' }}
+            onTransform={(_, state) => setZoomScale(state.scale)}
           >
             <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
               <div className={styles.canvasWrapper}>
@@ -483,8 +496,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                       </>
                     )}
                     {calibState.phase === 'corner2' && (
-                      <circle cx={calibState.c1.x} cy={calibState.c1.y} r={5}
-                        fill="rgba(59,130,246,0.85)" stroke="white" strokeWidth={1.5} />
+                      <circle cx={calibState.c1.x} cy={calibState.c1.y} r={5 / zoomScale}
+                        fill="rgba(59,130,246,0.85)" stroke="white" strokeWidth={1.5 / zoomScale} />
                     )}
                   </svg>
                 )}
