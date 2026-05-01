@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
@@ -51,6 +51,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [scanResult, setScanResult] = useState<string | null>(null)
   const [zoomScale, setZoomScale] = useState(1)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
+  const [detectedLines, setDetectedLines] = useState<{ h: number[]; v: number[] } | null>(null)
   // Metadata fields
   const [metaName, setMetaName] = useState(patternName)
   const [designer, setDesigner] = useState('')
@@ -88,6 +89,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     if (!pdf || !canvasRef.current) return
     let cancelled = false
     setRendering(true)
+    setDetectedLines(null)
 
     pdf.getPage(pageNum).then((page) => {
       if (cancelled || !canvasRef.current) return
@@ -101,7 +103,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       canvas.style.height = `${cssH}px`
       const ctx = canvas.getContext('2d')!
       return page.render({ canvas, canvasContext: ctx, viewport }).promise
-        .then(() => { if (!cancelled) setCanvasSize({ w: cssW, h: cssH }) })
+        .then(() => { if (!cancelled) { setCanvasSize({ w: cssW, h: cssH }); detectGridLines() } })
     }).then(() => {
       if (cancelled) return
       setRendering(false)
@@ -129,6 +131,103 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     return { x: (touch.clientX - rect.left) / zoom, y: (touch.clientY - rect.top) / zoom }
   }
 
+  // Analyse the rendered canvas to find the cross-stitch grid period and phase.
+  // Uses autocorrelation on CSS-resolution brightness profiles — robust even when
+  // symbol fills obscure individual grid lines.
+  const detectGridLines = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || canvas.width === 0 || canvas.height === 0) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const CW = canvas.width
+    const CH = canvas.height
+    const cssW = Math.ceil(CW / RENDER_SCALE)
+    const cssH = Math.ceil(CH / RENDER_SCALE)
+
+    const data = ctx.getImageData(0, 0, CW, CH).data
+
+    // Build CSS-resolution brightness profiles in one pixel pass
+    const rowSum = new Float64Array(cssH)
+    const colSum = new Float64Array(cssW)
+    const rowN   = new Int32Array(cssH)
+    const colN   = new Int32Array(cssW)
+
+    for (let y = 0; y < CH; y++) {
+      const cy = (y / RENDER_SCALE) | 0
+      for (let x = 0; x < CW; x++) {
+        const i = (y * CW + x) * 4
+        const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
+        rowSum[cy] += lum; rowN[cy]++
+        colSum[(x / RENDER_SCALE) | 0] += lum; colN[(x / RENDER_SCALE) | 0]++
+      }
+    }
+
+    const rowBright = Float32Array.from({ length: cssH }, (_, i) => rowN[i] ? rowSum[i] / rowN[i] : 255)
+    const colBright = Float32Array.from({ length: cssW }, (_, i) => colN[i] ? colSum[i] / colN[i] : 255)
+
+    // Find dominant period via normalised autocorrelation
+    const findPeriod = (profile: Float32Array, minP: number, maxP: number): number | null => {
+      const N = profile.length
+      const mean = profile.reduce((a, v) => a + v, 0) / N
+      const variance = profile.reduce((a, v) => a + (v - mean) ** 2, 0) / N
+      if (variance < 1) return null
+
+      let best = -1, bestR = 0.1
+      for (let lag = minP; lag <= Math.min(maxP, (N / 2) | 0); lag++) {
+        let corr = 0
+        const n = N - lag
+        for (let i = 0; i < n; i++) corr += (profile[i] - mean) * (profile[i + lag] - mean)
+        const r = corr / (n * variance)
+        if (r > bestR) { bestR = r; best = lag }
+      }
+      return best > 0 ? best : null
+    }
+
+    const rowPeriod = findPeriod(rowBright, 3, Math.min(60, (cssH / 3) | 0))
+    const colPeriod = findPeriod(colBright, 3, Math.min(60, (cssW / 3) | 0))
+    if (!rowPeriod || !colPeriod) { setDetectedLines(null); return }
+
+    // Phase: darkest position within the first period
+    const findPhase = (profile: Float32Array, period: number) => {
+      let minV = Infinity, phase = 0
+      for (let i = 0; i < Math.min(period, profile.length); i++) {
+        if (profile[i] < minV) { minV = profile[i]; phase = i }
+      }
+      return phase
+    }
+
+    const h: number[] = []
+    for (let y = findPhase(rowBright, rowPeriod); y < cssH; y += rowPeriod) h.push(y)
+    const v: number[] = []
+    for (let x = findPhase(colBright, colPeriod); x < cssW; x += colPeriod) v.push(x)
+
+    setDetectedLines({ h, v })
+  }, [])
+
+  // Return the nearest snappable intersection: detected PDF grid first, overlay grid fallback.
+  const getSnapPos = (x: number, y: number): { x: number; y: number } | null => {
+    if (detectedLines && detectedLines.h.length > 1 && detectedLines.v.length > 1) {
+      const snapR = Math.min(
+        detectedLines.h[1] - detectedLines.h[0],
+        detectedLines.v[1] - detectedLines.v[0],
+      ) * 0.45
+
+      let nearY = NaN, minDY = snapR
+      for (const hy of detectedLines.h) { const d = Math.abs(y - hy); if (d < minDY) { minDY = d; nearY = hy } }
+      let nearX = NaN, minDX = snapR
+      for (const vx of detectedLines.v) { const d = Math.abs(x - vx); if (d < minDX) { minDX = d; nearX = vx } }
+
+      if (!isNaN(nearX) && !isNaN(nearY)) return { x: nearX, y: nearY }
+    }
+    if (gridConfig) {
+      const col = Math.round((x - gridConfig.originX) / gridConfig.cellW)
+      const row = Math.round((y - gridConfig.originY) / gridConfig.cellH)
+      return { x: gridConfig.originX + col * gridConfig.cellW, y: gridConfig.originY + row * gridConfig.cellH }
+    }
+    return null
+  }
+
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => setHoverPos(getSvgCoords(e))
   const handleSvgMouseLeave = () => setHoverPos(null)
   const handleSvgTouchStart = (e: React.TouchEvent<SVGSVGElement>) => setHoverPos(getSvgTouchCoords(e))
@@ -136,11 +235,12 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
   // Unified SVG click handler — calibration or stitch toggling
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const pos = getSvgCoords(e)
-    if (!pos) return
-    const { x, y } = pos
+    const raw = getSvgCoords(e)
+    if (!raw) return
 
     if (isCalibrating) {
+      // Snap calibration corners to detected (or overlay) grid intersections
+      const { x, y } = getSnapPos(raw.x, raw.y) ?? raw
       if (calibState.phase === 'corner1') {
         setCalibState({ phase: 'corner2', c1: { x, y } })
       } else if (calibState.phase === 'corner2') {
@@ -161,8 +261,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       }
     } else if (gridConfig) {
       // Toggle the stitch square under the click
-      const col = Math.floor((x - gridConfig.originX) / gridConfig.cellW)
-      const row = Math.floor((y - gridConfig.originY) / gridConfig.cellH)
+      const col = Math.floor((raw.x - gridConfig.originX) / gridConfig.cellW)
+      const row = Math.floor((raw.y - gridConfig.originY) / gridConfig.cellH)
       const key = `${col},${row}`
       setProgress((prev) => {
         const next = { ...prev }
@@ -578,17 +678,14 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                         ))}
                       </>
                     )}
-                    {/* Hover cell highlight + snap dot — shows which cell will be toggled and nearest intersection */}
+                    {/* Hover cell highlight + snap dot snapped to detected PDF grid */}
                     {!isCalibrating && gridConfig && hoverPos && (() => {
                       const col = Math.floor((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
                       const row = Math.floor((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
                       const rx = gridConfig.originX + col * gridConfig.cellW
                       const ry = gridConfig.originY + row * gridConfig.cellH
                       const isCompleted = !!progress[`${col},${row}`]
-                      const snapCol = Math.round((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
-                      const snapRow = Math.round((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
-                      const sx = gridConfig.originX + snapCol * gridConfig.cellW
-                      const sy = gridConfig.originY + snapRow * gridConfig.cellH
+                      const sp = getSnapPos(hoverPos.x, hoverPos.y)
                       return (
                         <>
                           <rect
@@ -599,14 +696,16 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                             strokeWidth={1}
                             style={{ pointerEvents: 'none' }}
                           />
-                          <circle
-                            cx={sx} cy={sy}
-                            r={3 / zoomScale}
-                            fill="rgba(59,130,246,0.9)"
-                            stroke="white"
-                            strokeWidth={1 / zoomScale}
-                            style={{ pointerEvents: 'none' }}
-                          />
+                          {sp && (
+                            <circle
+                              cx={sp.x} cy={sp.y}
+                              r={3 / zoomScale}
+                              fill="rgba(59,130,246,0.9)"
+                              stroke="white"
+                              strokeWidth={1 / zoomScale}
+                              style={{ pointerEvents: 'none' }}
+                            />
+                          )}
                         </>
                       )
                     })()}
@@ -614,18 +713,12 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                       <circle cx={calibState.c1.x} cy={calibState.c1.y} r={5 / zoomScale}
                         fill="rgba(59,130,246,0.85)" stroke="white" strokeWidth={1.5 / zoomScale} />
                     )}
-                    {/* Live cursor dot during calibration — snaps to nearest grid intersection if one exists */}
+                    {/* Calibration cursor dot — snaps to detected PDF grid intersections */}
                     {isCalibrating && hoverPos && (() => {
-                      let cx = hoverPos.x, cy = hoverPos.y
-                      if (gridConfig) {
-                        const snapCol = Math.round((hoverPos.x - gridConfig.originX) / gridConfig.cellW)
-                        const snapRow = Math.round((hoverPos.y - gridConfig.originY) / gridConfig.cellH)
-                        cx = gridConfig.originX + snapCol * gridConfig.cellW
-                        cy = gridConfig.originY + snapRow * gridConfig.cellH
-                      }
+                      const sp = getSnapPos(hoverPos.x, hoverPos.y) ?? hoverPos
                       return (
                         <circle
-                          cx={cx} cy={cy}
+                          cx={sp.x} cy={sp.y}
                           r={4 / zoomScale}
                           fill="rgba(59,130,246,0.55)"
                           stroke="white"
