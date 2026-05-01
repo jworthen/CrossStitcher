@@ -212,6 +212,21 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     setDetectedLines({ h, v })
   }, [])
 
+  // Auto-calibrate: when detection succeeds and no grid has been set yet, apply it automatically.
+  useEffect(() => {
+    if (!detectedLines || gridConfig) return
+    const { h, v } = detectedLines
+    if (h.length < 2 || v.length < 2) return
+    const config: GridConfig = {
+      originX: v[0],
+      originY: h[0],
+      cellW: v[1] - v[0],
+      cellH: h[1] - h[0],
+    }
+    setGridConfig(config)
+    saveGridConfig(patternId, config)
+  }, [detectedLines])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // Return the nearest snappable intersection: detected PDF grid first, overlay grid fallback.
   const getSnapPos = (x: number, y: number): { x: number; y: number } | null => {
     if (detectedLines && detectedLines.h.length > 1 && detectedLines.v.length > 1) {
@@ -462,7 +477,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                 className={`${styles.toolbarBtn} ${!gridConfig ? styles.toolbarBtnPrimary : ''}`}
                 onClick={() => setCalibState({ phase: 'corner1' })}
               >
-                {gridConfig ? 'Recalibrate' : 'Set Grid'}
+                {gridConfig ? 'Adjust Grid' : 'Set Grid Manually'}
               </button>
               {gridConfig && (
                 <button className={`${styles.toolbarBtn} ${styles.toolbarBtnDanger}`} onClick={handleClearGrid}>
