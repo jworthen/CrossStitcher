@@ -169,18 +169,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     const dmcMap = new Map(DMC_COLORS.map((c) => [c.number.toLowerCase(), c.number]))
     const dmcColorNames = new Set(DMC_COLORS.map((c) => c.name.toLowerCase()))
     const Y_TOL = 4
-    const OFFSCREEN_SCALE = 2  // render pages at 2× for cropping — less memory than RENDER_SCALE
-    const CROP_PX = 32          // output symbol image size in pixels
+    const OFFSCREEN_SCALE = 2
+    const CROP_PX = 32
 
     interface RowItem { str: string; x: number; y: number; h: number }
 
-    const isSymbolCandidate = (t: string) =>
-      t.length > 0 && t.length <= 4 &&
-      !/^\d+$/.test(t) &&
-      !dmcMap.has(t.toLowerCase()) &&
-      !dmcColorNames.has(t.toLowerCase())
-
-    // Results keyed by DMC number — populated page by page
     const results = new Map<string, {
       symbolText?: string
       symbolImage?: string
@@ -192,7 +185,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       const viewport = page.getViewport({ scale: OFFSCREEN_SCALE })
       const textContent = await page.getTextContent()
 
-      // Collect text items with position and height
       const items: RowItem[] = []
       for (const item of textContent.items) {
         if (!('str' in item)) continue
@@ -200,12 +192,10 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         if (!str) continue
         const tf = item.transform as number[]
         const x = tf[4], y = tf[5]
-        // Height: use item.height if available, fall back to transform scale
         const h = (item as unknown as { height: number }).height || Math.abs(tf[0]) || 10
         items.push({ str, x, y, h })
       }
 
-      // Group into rows by Y coordinate
       const rowMap = new Map<number, RowItem[]>()
       for (const item of items) {
         let matched: number | null = null
@@ -216,7 +206,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         else rowMap.set(item.y, [item])
       }
 
-      // Parse rows — record DMC entries and their symbol column bounds (PDF space)
       type PageEntry = {
         dmcNum: string
         symbolText?: string
@@ -231,49 +220,60 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
         let dmcNum: string | null = null
         let dmcItemIdx = -1
-        outer: for (let i = 0; i < rowItems.length; i++) {
-          for (const token of rowItems[i].str.split(/[\s,;/()\[\]]+/)) {
-            const t = token.trim().toLowerCase()
-            if (t && dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = i; break outer }
+
+        // Primary: find literal "DMC" brand label → next item is the color number.
+        // This avoids misidentifying the strand count (e.g. "2") as a DMC color.
+        const dmcLabelIdx = rowItems.findIndex((it) => it.str.trim() === 'DMC')
+        if (dmcLabelIdx >= 0 && dmcLabelIdx + 1 < rowItems.length) {
+          const next = rowItems[dmcLabelIdx + 1]
+          const t = next.str.trim().toLowerCase()
+          if (dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = dmcLabelIdx + 1 }
+        }
+
+        // Fallback: scan tokens left-to-right, skip single-char digits (strand counts like "2")
+        if (!dmcNum) {
+          outer: for (let i = 0; i < rowItems.length; i++) {
+            for (const token of rowItems[i].str.split(/[\s,;/()\[\]]+/)) {
+              const t = token.trim()
+              if (!t || /^\d$/.test(t)) continue
+              if (dmcMap.has(t.toLowerCase())) { dmcNum = dmcMap.get(t.toLowerCase())!; dmcItemIdx = i; break outer }
+            }
           }
         }
+
         if (!dmcNum || results.has(dmcNum)) continue
 
-        // Symbol text (best-effort — may be garbled for proprietary fonts)
+        // Symbol: leftmost item. Digits are intentionally allowed — proprietary symbol fonts
+        // often map glyphs to digit codepoints, so filtering them out drops valid symbols.
         let symbolText: string | undefined
-        for (const token of rowItems[dmcItemIdx].str.split(/[\s,;/()\[\]]+/)) {
-          const t = token.trim()
-          if (t.toLowerCase() === dmcNum.toLowerCase()) break
-          if (isSymbolCandidate(t)) { symbolText = t; break }
-        }
-        if (!symbolText) {
-          for (let i = 0; i < dmcItemIdx; i++) {
-            if (isSymbolCandidate(rowItems[i].str.trim())) symbolText = rowItems[i].str.trim()
+        if (dmcItemIdx > 0) {
+          const s = rowItems[0].str.trim()
+          if (s.length > 0 && s.length <= 4 && !dmcMap.has(s.toLowerCase()) && !dmcColorNames.has(s.toLowerCase())) {
+            symbolText = s
           }
         }
 
-        // Stitch count
+        // Stitch count: must be 2+ digit integer (avoids strand count "2") and not a DMC number
         let stitchCount: number | undefined
         for (const item of rowItems) {
           const str = item.str.trim()
-          if (!/^\d+$/.test(str) || dmcMap.has(str.toLowerCase())) continue
+          if (!/^\d{2,}$/.test(str) || dmcMap.has(str.toLowerCase())) continue
           const n = parseInt(str, 10)
-          if (n >= 1) { stitchCount = n; break }
+          if (n >= 10) { stitchCount = n; break }
         }
 
-        // Symbol crop region in canvas space — derived from item to the left of the DMC column
-        const dmcItem = rowItems[dmcItemIdx]
-        const rowH = dmcItem.h
+        // Crop the symbol column from the rendered page
+        const symItem = dmcItemIdx > 0 ? rowItems[0] : null
         let cropX = 0, cropY = 0, cropW = 0, cropH = 0, hasCrop = false
-
-        if (dmcItemIdx > 0) {
-          const symItem = rowItems[dmcItemIdx - 1]
-          // PDF → canvas: y flips (PDF origin bottom-left, canvas top-left)
-          const pdfColW = Math.max(dmcItem.x - symItem.x, rowH * 1.5)
+        if (symItem) {
+          const symH = symItem.h > 0 ? symItem.h : 10
+          const nextItem = rowItems[1] ?? null
+          const colW = nextItem ? Math.min(nextItem.x - symItem.x, symH * 3) : symH * 2
           cropX = symItem.x * OFFSCREEN_SCALE
-          cropY = viewport.height - (dmcItem.y + rowH * 1.0) * OFFSCREEN_SCALE
-          cropW = pdfColW * OFFSCREEN_SCALE
-          cropH = rowH * 1.5 * OFFSCREEN_SCALE
+          // PDF y-origin is bottom-left; canvas y-origin is top-left
+          cropY = viewport.height - (symItem.y + symH) * OFFSCREEN_SCALE
+          cropW = colW * OFFSCREEN_SCALE
+          cropH = symH * 1.5 * OFFSCREEN_SCALE
           hasCrop = cropX >= 0 && cropY >= 0 && cropW > 4 && cropH > 4 &&
                     cropX + cropW <= viewport.width && cropY + cropH <= viewport.height
         }
@@ -283,7 +283,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
       if (pageEntries.length === 0) continue
 
-      // Render page to offscreen canvas so we can crop symbol images
       const offscreen = document.createElement('canvas')
       offscreen.width = viewport.width
       offscreen.height = viewport.height
