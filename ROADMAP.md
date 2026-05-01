@@ -74,14 +74,14 @@ Track a pattern's color requirements. Unlocks Phase 6 inventory integration.
 - [x] Manual add/remove as fallback for PDFs without extractable text
 - [x] Per-color progress: mark colors done, summary shows stitches done vs. remaining
 
-## Phase 5f — Pattern Metadata
+## Phase 5f — Pattern Metadata ✅
 Let users document their patterns properly. Currently patterns are named from the PDF filename, which is often an order number or garbled string.
 
-- [ ] Edit pattern name (in-place, from the library list or viewer header)
-- [ ] Designer / brand field (e.g., "Dimensions", "Anchor", "indie designer name")
-- [ ] Fabric type & count (e.g., 14-count Aida, 28-count evenweave)
-- [ ] Notes field (free text — source URL, purchase date, kit contents, etc.)
-- [ ] Display designer name as a subtitle under the pattern name in the library
+- [x] Edit pattern name (in-place, from the library list or viewer header)
+- [x] Designer / brand field (e.g., "Dimensions", "Anchor", "indie designer name")
+- [x] Fabric type & count (e.g., 14-count Aida, 28-count evenweave)
+- [x] Notes field (free text — source URL, purchase date, kit contents, etc.)
+- [x] Display designer name as a subtitle under the pattern name in the library
 
 ## Phase 6 — Inventory + Pattern Integration
 - [ ] Cross-reference pattern color requirements against your inventory

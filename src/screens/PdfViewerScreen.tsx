@@ -3,7 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { loadPatternData, saveGridConfig, saveProgress, savePatternColors } from '../hooks/usePatterns'
+import { loadPatternData, saveGridConfig, saveProgress, savePatternColors, savePatternMeta } from '../hooks/usePatterns'
 import type { GridConfig, PatternColor } from '../hooks/usePatterns'
 import { DMC_COLORS } from '../data/dmcColors'
 import PatternColorList from '../components/PatternColorList'
@@ -46,15 +46,20 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [progress, setProgress] = useState<Record<string, true>>({})
   const [patternColors, setPatternColors] = useState<PatternColor[]>([])
   const [calibState, setCalibState] = useState<CalibState>({ phase: 'off' })
-  const [viewTab, setViewTab] = useState<'pattern' | 'colors'>('pattern')
+  const [viewTab, setViewTab] = useState<'pattern' | 'colors' | 'info'>('pattern')
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<string | null>(null)
+  // Metadata fields
+  const [metaName, setMetaName] = useState(patternName)
+  const [designer, setDesigner] = useState('')
+  const [fabric, setFabric] = useState('')
+  const [notes, setNotes] = useState('')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
 
   const isCalibrating = calibState.phase !== 'off'
 
-  // Load PDF + existing grid config from IndexedDB
+  // Load PDF + existing data from IndexedDB
   useEffect(() => {
     let cancelled = false
     loadPatternData(patternId).then(async (data) => {
@@ -62,6 +67,10 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       setGridConfig(data.gridConfig)
       setProgress(data.progress ?? {})
       setPatternColors(data.patternColors ?? [])
+      setMetaName(data.name)
+      setDesigner(data.designer ?? '')
+      setFabric(data.fabric ?? '')
+      setNotes(data.notes ?? '')
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
         if (!cancelled) { setPdf(doc); setNumPages(doc.numPages) }
@@ -251,6 +260,10 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     setScanning(false)
   }
 
+  const saveMetaField = (patch: Partial<{ name: string; designer: string; fabric: string; notes: string }>) => {
+    savePatternMeta(patternId, patch)
+  }
+
   const stitchW = canvasSize && gridConfig ? Math.round(canvasSize.w / gridConfig.cellW) : null
   const stitchH = canvasSize && gridConfig ? Math.round(canvasSize.h / gridConfig.cellH) : null
   const estimatedTotal = stitchW && stitchH ? stitchW * stitchH : 0
@@ -262,8 +275,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       {/* Header */}
       <header className={styles.header}>
         <button className={styles.backBtn} onClick={onBack}>← Back</button>
-        <span className={styles.title}>{patternName}</span>
-        {numPages > 0 && (
+        <span className={styles.title}>{metaName}</span>
+        {numPages > 0 && viewTab === 'pattern' && (
           <span className={styles.pageIndicator}>{pageNum} / {numPages}</span>
         )}
       </header>
@@ -282,6 +295,12 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
             onClick={() => setViewTab('colors')}
           >
             Colors{patternColors.length > 0 ? ` (${patternColors.length})` : ''}
+          </button>
+          <button
+            className={`${styles.viewTab} ${viewTab === 'info' ? styles.viewTabActive : ''}`}
+            onClick={() => setViewTab('info')}
+          >
+            Info
           </button>
         </div>
       )}
@@ -352,6 +371,56 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
               savePatternColors(patternId, colors)
             }}
           />
+        </div>
+      )}
+
+      {/* Info tab */}
+      {viewTab === 'info' && (
+        <div className={styles.infoArea}>
+          <div className={styles.infoField}>
+            <label className={styles.infoLabel}>Pattern name</label>
+            <input
+              className={styles.infoInput}
+              value={metaName}
+              onChange={(e) => setMetaName(e.target.value)}
+              onBlur={(e) => { const v = e.target.value.trim(); if (v) { setMetaName(v); saveMetaField({ name: v }) } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            />
+          </div>
+          <div className={styles.infoRow}>
+            <div className={styles.infoField}>
+              <label className={styles.infoLabel}>Designer / brand</label>
+              <input
+                className={styles.infoInput}
+                placeholder="e.g. Dimensions, Anchor…"
+                value={designer}
+                onChange={(e) => setDesigner(e.target.value)}
+                onBlur={(e) => saveMetaField({ designer: e.target.value.trim() })}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+              />
+            </div>
+            <div className={styles.infoField}>
+              <label className={styles.infoLabel}>Fabric</label>
+              <input
+                className={styles.infoInput}
+                placeholder="e.g. 14-count Aida…"
+                value={fabric}
+                onChange={(e) => setFabric(e.target.value)}
+                onBlur={(e) => saveMetaField({ fabric: e.target.value.trim() })}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+              />
+            </div>
+          </div>
+          <div className={styles.infoField}>
+            <label className={styles.infoLabel}>Notes</label>
+            <textarea
+              className={`${styles.infoInput} ${styles.infoTextarea}`}
+              placeholder="Source URL, purchase date, kit contents…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={(e) => saveMetaField({ notes: e.target.value.trim() })}
+            />
+          </div>
         </div>
       )}
 

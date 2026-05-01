@@ -23,6 +23,9 @@ export interface PatternMeta {
   name: string
   dateAdded: number
   fileSize: number
+  designer?: string
+  fabric?: string
+  notes?: string
 }
 
 interface StoredPattern extends PatternMeta {
@@ -77,8 +80,12 @@ function idbDelete(db: IDBDatabase, id: string): Promise<void> {
   })
 }
 
-function toMeta({ id, name, dateAdded, fileSize }: StoredPattern): PatternMeta {
-  return { id, name, dateAdded, fileSize }
+function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: StoredPattern): PatternMeta {
+  const meta: PatternMeta = { id, name, dateAdded, fileSize }
+  if (designer) meta.designer = designer
+  if (fabric) meta.fabric = fabric
+  if (notes) meta.notes = notes
+  return meta
 }
 
 export async function loadPatternData(id: string): Promise<{
@@ -86,11 +93,38 @@ export async function loadPatternData(id: string): Promise<{
   gridConfig?: GridConfig
   progress?: Record<string, true>
   patternColors?: PatternColor[]
+  name: string
+  designer?: string
+  fabric?: string
+  notes?: string
 } | null> {
   const db = await openDB()
   const record = await idbGet(db, id)
   if (!record) return null
-  return { file: record.file, gridConfig: record.gridConfig, progress: record.progress, patternColors: record.patternColors }
+  return {
+    file: record.file,
+    gridConfig: record.gridConfig,
+    progress: record.progress,
+    patternColors: record.patternColors,
+    name: record.name,
+    designer: record.designer,
+    fabric: record.fabric,
+    notes: record.notes,
+  }
+}
+
+export async function savePatternMeta(
+  id: string,
+  patch: Partial<Pick<PatternMeta, 'name' | 'designer' | 'fabric' | 'notes'>>
+): Promise<void> {
+  const db = await openDB()
+  const record = await idbGet(db, id)
+  if (!record) return
+  const updated: StoredPattern = { ...record, ...patch }
+  if (!updated.designer) delete updated.designer
+  if (!updated.fabric) delete updated.fabric
+  if (!updated.notes) delete updated.notes
+  await idbPut(db, updated)
 }
 
 export async function savePatternColors(id: string, patternColors: PatternColor[]): Promise<void> {
@@ -157,6 +191,14 @@ export function usePatterns() {
     setPatterns((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
+  const updatePattern = useCallback(async (
+    id: string,
+    patch: Partial<Pick<PatternMeta, 'name' | 'designer' | 'fabric' | 'notes'>>
+  ) => {
+    await savePatternMeta(id, patch)
+    setPatterns((prev) => prev.map((p) => p.id === id ? { ...p, ...patch } : p))
+  }, [])
+
   // Used in Phase 5b (PDF viewer) — retrieves raw bytes for a stored pattern
   const getPatternFile = useCallback(async (id: string): Promise<ArrayBuffer | null> => {
     const db = await openDB()
@@ -164,5 +206,5 @@ export function usePatterns() {
     return record?.file ?? null
   }, [])
 
-  return { patterns, loading, addPattern, deletePattern, getPatternFile }
+  return { patterns, loading, addPattern, deletePattern, getPatternFile, updatePattern }
 }
