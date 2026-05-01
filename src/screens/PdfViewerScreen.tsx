@@ -3,7 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { loadPatternData, saveGridConfig, saveProgress, savePatternColors, savePatternMeta } from '../hooks/usePatterns'
+import { loadPatternData, saveGridConfig, saveProgress, savePatternColors, savePatternMeta, clearGridAndProgress } from '../hooks/usePatterns'
 import type { GridConfig, PatternColor } from '../hooks/usePatterns'
 import { DMC_COLORS } from '../data/dmcColors'
 import PatternColorList from '../components/PatternColorList'
@@ -261,10 +261,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         }
         setGridConfig(config)
         setCalibState({ phase: 'off' })
-        // Clear stale progress — cell positions are no longer valid after recalibration
+        // Clear stale progress atomically with the new grid — avoids concurrent write race
         setProgress({})
-        saveProgress(patternId, {})
-        saveGridConfig(patternId, config)
+        clearGridAndProgress(patternId).then(() => saveGridConfig(patternId, config))
       }
     } else if (gridConfig) {
       // Toggle the stitch square under the click
@@ -284,8 +283,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const handleClearGrid = () => {
     setGridConfig(undefined)
     setProgress({})
-    saveGridConfig(patternId, undefined)
-    saveProgress(patternId, {})
+    clearGridAndProgress(patternId)
   }
 
   const scanPdfForColors = async () => {
