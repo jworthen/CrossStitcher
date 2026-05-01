@@ -365,28 +365,29 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           }
         }
 
-        // Stitch count: must be 2+ digit integer (avoids strand count "2") and not a DMC number
+        // Stitch count: look only at items after the color number column so we
+        // don't confuse DMC numbers or strand counts. Strip commas for "1,234" format.
         let stitchCount: number | undefined
-        for (const item of rowItems) {
-          const str = item.str.trim()
-          if (!/^\d{2,}$/.test(str) || dmcMap.has(str.toLowerCase())) continue
+        for (let i = dmcItemIdx + 1; i < rowItems.length; i++) {
+          const str = rowItems[i].str.trim().replace(/,/g, '')
+          if (!/^\d{2,}$/.test(str)) continue
           const n = parseInt(str, 10)
           if (n >= 10) { stitchCount = n; break }
         }
 
-        // Crop the symbol column from the rendered page
+        // Crop the symbol column from the rendered page.
+        // Use a square region (symH × symH) so the output image isn't distorted when
+        // drawn onto the square CROP_PX × CROP_PX canvas.
         const symItem = dmcItemIdx > 0 ? rowItems[0] : null
         let cropX = 0, cropY = 0, cropW = 0, cropH = 0, hasCrop = false
         if (symItem) {
           const symH = symItem.h > 0 ? symItem.h : 10
-          const nextItem = rowItems[1] ?? null
-          const colW = nextItem ? Math.min(nextItem.x - symItem.x, symH * 3) : symH * 2
-          // Add padding so symbol isn't clipped at edges; clamp to canvas bounds
+          const side = symH + CROP_PAD * 2  // square side in PDF points
           cropX = Math.max(0, (symItem.x - CROP_PAD) * OFFSCREEN_SCALE)
           // PDF y-origin is bottom-left; canvas y-origin is top-left
           cropY = Math.max(0, viewport.height - (symItem.y + symH + CROP_PAD) * OFFSCREEN_SCALE)
-          cropW = Math.min((colW + CROP_PAD * 2) * OFFSCREEN_SCALE, viewport.width - cropX)
-          cropH = Math.min((symH + CROP_PAD * 2) * OFFSCREEN_SCALE, viewport.height - cropY)
+          cropW = Math.min(side * OFFSCREEN_SCALE, viewport.width - cropX)
+          cropH = Math.min(side * OFFSCREEN_SCALE, viewport.height - cropY)
           hasCrop = cropW > 4 && cropH > 4
         }
 
