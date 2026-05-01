@@ -231,17 +231,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           if (dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = dmcLabelIdx + 1 }
         }
 
-        // Fallback: scan tokens left-to-right, skip single-char digits (strand counts like "2")
-        if (!dmcNum) {
-          outer: for (let i = 0; i < rowItems.length; i++) {
-            for (const token of rowItems[i].str.split(/[\s,;/()\[\]]+/)) {
-              const t = token.trim()
-              if (!t || /^\d$/.test(t)) continue
-              if (dmcMap.has(t.toLowerCase())) { dmcNum = dmcMap.get(t.toLowerCase())!; dmcItemIdx = i; break outer }
-            }
-          }
-        }
-
+        // No fallback — only trust rows with an explicit "DMC" label to avoid false positives
+        // from stitch counts, dimensions, or other numbers elsewhere in the PDF.
         if (!dmcNum || results.has(dmcNum)) continue
 
         // Symbol: leftmost item. Digits are intentionally allowed — proprietary symbol fonts
