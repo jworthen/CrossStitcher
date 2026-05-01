@@ -276,7 +276,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           cropX = symItem.x * OFFSCREEN_SCALE  // no left padding — x is the glyph start
           // PDF y-origin is bottom-left; canvas y-origin is top-left
           cropY = Math.max(0, viewport.height - safeTopPdf * OFFSCREEN_SCALE)
-          cropW = Math.min(side * OFFSCREEN_SCALE, viewport.width - cropX)
+          cropW = Math.min((side + CROP_PAD) * OFFSCREEN_SCALE, viewport.width - cropX)
           cropH = Math.min(side * OFFSCREEN_SCALE, viewport.height - cropY)
           hasCrop = cropW > 4 && cropH > 4
         }
