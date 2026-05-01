@@ -120,8 +120,19 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     return { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom }
   }
 
+  const getSvgTouchCoords = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (!canvasSize) return null
+    const touch = e.touches[0] ?? e.changedTouches[0]
+    if (!touch) return null
+    const rect = e.currentTarget.getBoundingClientRect()
+    const zoom = rect.width / canvasSize.w
+    return { x: (touch.clientX - rect.left) / zoom, y: (touch.clientY - rect.top) / zoom }
+  }
+
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => setHoverPos(getSvgCoords(e))
   const handleSvgMouseLeave = () => setHoverPos(null)
+  const handleSvgTouchStart = (e: React.TouchEvent<SVGSVGElement>) => setHoverPos(getSvgTouchCoords(e))
+  const handleSvgTouchEnd = () => setHoverPos(null)
 
   // Unified SVG click handler — calibration or stitch toggling
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -480,6 +491,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                     onClick={handleSvgClick}
                     onMouseMove={handleSvgMouseMove}
                     onMouseLeave={handleSvgMouseLeave}
+                    onTouchStart={handleSvgTouchStart}
+                    onTouchEnd={handleSvgTouchEnd}
+                    onTouchCancel={handleSvgTouchEnd}
                   >
                     {gridConfig && (
                       <>
