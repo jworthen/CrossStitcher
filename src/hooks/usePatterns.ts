@@ -7,6 +7,7 @@ const STORE = 'patterns'
 export interface PatternColor {
   dmcNumber: string
   stitchCount?: number
+  skeinCount?: number   // skeins needed — read from PDF legend
   done: boolean
   symbol?: string
   symbolImage?: string  // base64 PNG cropped from the rendered PDF legend

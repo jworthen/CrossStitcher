@@ -118,9 +118,11 @@ export default function PatternColorList({ colors, onChange }: Props) {
                     <span className={styles.name}>{name}</span>
                   </div>
                   {color.stitchCount ? (
-                    <span className={styles.stitchCount}>{color.stitchCount} sts</span>
+                    <span className={styles.stitchCount}>{color.stitchCount.toLocaleString()} sts</span>
+                  ) : color.skeinCount ? (
+                    <span className={styles.stitchCount}>{color.skeinCount} sk</span>
                   ) : (
-                    <span className={styles.stitchCountEmpty}>— sts</span>
+                    <span className={styles.stitchCountEmpty}>—</span>
                   )}
                   <button
                     className={`${styles.doneBtn} ${color.done ? styles.doneBtnActive : ''}`}

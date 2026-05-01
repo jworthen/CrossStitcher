@@ -305,7 +305,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     const results = new Map<string, {
       symbolText?: string
       symbolImage?: string
-      stitchCount?: number
+      skeinCount?: number
     }>()
 
     for (let p = 1; p <= numPages; p++) {
@@ -337,7 +337,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       type PageEntry = {
         dmcNum: string
         symbolText?: string
-        stitchCount?: number
+        skeinCount?: number
         cropX: number; cropY: number; cropW: number; cropH: number
         hasCrop: boolean
       }
@@ -372,14 +372,13 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           }
         }
 
-        // Stitch count: look only at items after the color number column so we
-        // don't confuse DMC numbers or strand counts. Strip commas for "1,234" format.
-        let stitchCount: number | undefined
+        // Skein count: items after the color number column, strip commas for "1,234" format.
+        let skeinCount: number | undefined
         for (let i = dmcItemIdx + 1; i < rowItems.length; i++) {
           const str = rowItems[i].str.trim().replace(/,/g, '')
-          if (!/^\d{2,}$/.test(str)) continue
+          if (!/^\d+$/.test(str)) continue
           const n = parseInt(str, 10)
-          if (n >= 10) { stitchCount = n; break }
+          if (n >= 1) { skeinCount = n; break }
         }
 
         // Crop the symbol column from the rendered page.
@@ -398,7 +397,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           hasCrop = cropW > 4 && cropH > 4
         }
 
-        pageEntries.push({ dmcNum, symbolText, stitchCount, cropX, cropY, cropW, cropH, hasCrop })
+        pageEntries.push({ dmcNum, symbolText, skeinCount, cropX, cropY, cropW, cropH, hasCrop })
       }
 
       if (pageEntries.length === 0) continue
@@ -422,7 +421,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                         0, 0, CROP_PX, CROP_PX)
           symbolImage = crop.toDataURL('image/png')
         }
-        results.set(entry.dmcNum, { symbolText: entry.symbolText, symbolImage, stitchCount: entry.stitchCount })
+        results.set(entry.dmcNum, { symbolText: entry.symbolText, symbolImage, skeinCount: entry.skeinCount })
       }
     }
 
@@ -432,7 +431,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       if (!existingNums.has(num.toLowerCase())) {
         added.push({
           dmcNumber: num, done: false,
-          symbol: meta.symbolText, symbolImage: meta.symbolImage, stitchCount: meta.stitchCount,
+          symbol: meta.symbolText, symbolImage: meta.symbolImage, skeinCount: meta.skeinCount,
         })
       }
     }
