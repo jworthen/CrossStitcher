@@ -169,8 +169,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     const dmcMap = new Map(DMC_COLORS.map((c) => [c.number.toLowerCase(), c.number]))
     const dmcColorNames = new Set(DMC_COLORS.map((c) => c.name.toLowerCase()))
     const Y_TOL = 4
-    const OFFSCREEN_SCALE = 2
-    const CROP_PX = 32
+    const OFFSCREEN_SCALE = 3  // higher scale → sharper symbol crops
+    const CROP_PX = 48         // output size in px
+    const CROP_PAD = 2         // padding around symbol in PDF points
 
     interface RowItem { str: string; x: number; y: number; h: number }
 
@@ -269,13 +270,13 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           const symH = symItem.h > 0 ? symItem.h : 10
           const nextItem = rowItems[1] ?? null
           const colW = nextItem ? Math.min(nextItem.x - symItem.x, symH * 3) : symH * 2
-          cropX = symItem.x * OFFSCREEN_SCALE
+          // Add padding so symbol isn't clipped at edges; clamp to canvas bounds
+          cropX = Math.max(0, (symItem.x - CROP_PAD) * OFFSCREEN_SCALE)
           // PDF y-origin is bottom-left; canvas y-origin is top-left
-          cropY = viewport.height - (symItem.y + symH) * OFFSCREEN_SCALE
-          cropW = colW * OFFSCREEN_SCALE
-          cropH = symH * 1.5 * OFFSCREEN_SCALE
-          hasCrop = cropX >= 0 && cropY >= 0 && cropW > 4 && cropH > 4 &&
-                    cropX + cropW <= viewport.width && cropY + cropH <= viewport.height
+          cropY = Math.max(0, viewport.height - (symItem.y + symH + CROP_PAD) * OFFSCREEN_SCALE)
+          cropW = Math.min((colW + CROP_PAD * 2) * OFFSCREEN_SCALE, viewport.width - cropX)
+          cropH = Math.min((symH + CROP_PAD * 2) * OFFSCREEN_SCALE, viewport.height - cropY)
+          hasCrop = cropW > 4 && cropH > 4
         }
 
         pageEntries.push({ dmcNum, symbolText, stitchCount, cropX, cropY, cropW, cropH, hasCrop })
