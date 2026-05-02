@@ -32,7 +32,8 @@ export interface PatternMeta {
 
 interface StoredPattern extends PatternMeta {
   file: ArrayBuffer
-  gridConfig?: GridConfig
+  gridConfig?: GridConfig                        // legacy — migrated to gridConfigs on read
+  gridConfigs?: Record<number, GridConfig>       // per-page grid configs
   progress?: Record<string, string>
   patternColors?: PatternColor[]
 }
@@ -92,7 +93,7 @@ function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: Stor
 
 export async function loadPatternData(id: string): Promise<{
   file: ArrayBuffer
-  gridConfig?: GridConfig
+  gridConfigs: Record<number, GridConfig>
   progress?: Record<string, string>
   patternColors?: PatternColor[]
   name: string
@@ -103,9 +104,12 @@ export async function loadPatternData(id: string): Promise<{
   const db = await openDB()
   const record = await idbGet(db, id)
   if (!record) return null
+  // Migrate legacy single gridConfig → gridConfigs[1]
+  const gridConfigs: Record<number, GridConfig> = { ...(record.gridConfigs ?? {}) }
+  if (record.gridConfig && !gridConfigs[1]) gridConfigs[1] = record.gridConfig
   return {
     file: record.file,
-    gridConfig: record.gridConfig,
+    gridConfigs,
     progress: record.progress,
     patternColors: record.patternColors,
     name: record.name,
@@ -149,25 +153,40 @@ export async function saveProgress(id: string, progress: Record<string, string>)
   await idbPut(db, updated)
 }
 
-export async function saveGridConfig(id: string, gridConfig: GridConfig | undefined): Promise<void> {
+export async function saveGridConfig(id: string, page: number, gridConfig: GridConfig | undefined): Promise<void> {
   const db = await openDB()
   const record = await idbGet(db, id)
   if (!record) return
   const updated: StoredPattern = { ...record }
-  if (gridConfig) updated.gridConfig = gridConfig
-  else delete updated.gridConfig
+  const gridConfigs: Record<number, GridConfig> = { ...(record.gridConfigs ?? {}) }
+  if (record.gridConfig && !gridConfigs[1]) gridConfigs[1] = record.gridConfig
+  if (gridConfig) gridConfigs[page] = gridConfig
+  else delete gridConfigs[page]
+  if (Object.keys(gridConfigs).length > 0) updated.gridConfigs = gridConfigs
+  else delete updated.gridConfigs
+  delete updated.gridConfig
   await idbPut(db, updated)
 }
 
-// Clears both gridConfig and progress in one atomic read-modify-write to avoid
-// the race condition that occurs when the two separate saves run concurrently.
-export async function clearGridAndProgress(id: string): Promise<void> {
+// Clears grid config and progress for one page in one atomic write.
+export async function clearGridAndProgress(id: string, page: number): Promise<void> {
   const db = await openDB()
   const record = await idbGet(db, id)
   if (!record) return
   const updated: StoredPattern = { ...record }
+  const gridConfigs: Record<number, GridConfig> = { ...(record.gridConfigs ?? {}) }
+  if (record.gridConfig && !gridConfigs[1]) gridConfigs[1] = record.gridConfig
+  delete gridConfigs[page]
+  if (Object.keys(gridConfigs).length > 0) updated.gridConfigs = gridConfigs
+  else delete updated.gridConfigs
   delete updated.gridConfig
-  delete updated.progress
+  const prefix = `${page}:`
+  const progress: Record<string, string> = {}
+  for (const [k, v] of Object.entries(record.progress ?? {})) {
+    if (!k.startsWith(prefix)) progress[k] = v
+  }
+  if (Object.keys(progress).length > 0) updated.progress = progress
+  else delete updated.progress
   await idbPut(db, updated)
 }
 

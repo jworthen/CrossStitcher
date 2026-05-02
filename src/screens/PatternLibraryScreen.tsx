@@ -18,11 +18,9 @@ interface Props {
 }
 
 export default function PatternLibraryScreen({ onOpenViewer }: Props) {
-  const { patterns, loading, addPattern, deletePattern, updatePattern } = usePatterns()
+  const { patterns, loading, addPattern, deletePattern } = usePatterns()
   const [deletePending, setDeletePending] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editingName, setEditingName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,31 +43,12 @@ export default function PatternLibraryScreen({ onOpenViewer }: Props) {
   }
 
   const handleRowClick = (p: PatternMeta) => {
-    if (editingId === p.id) return
     if (deletePending === p.id) { setDeletePending(null); return }
     onOpenViewer(p.id, p.name)
   }
 
-  const startEdit = (e: React.MouseEvent, p: PatternMeta) => {
-    e.stopPropagation()
-    setEditingId(p.id)
-    setEditingName(p.name)
-  }
-
-  const commitEdit = () => {
-    if (!editingId) return
-    const trimmed = editingName.trim()
-    if (trimmed) updatePattern(editingId, { name: trimmed })
-    setEditingId(null)
-  }
-
-  const handleEditKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') commitEdit()
-    if (e.key === 'Escape') setEditingId(null)
-  }
-
   return (
-    <div className={styles.container} onClick={() => { setDeletePending(null); setEditingId(null) }}>
+    <div className={styles.container} onClick={() => setDeletePending(null)}>
       <div className={styles.sticky}>
         <header className={styles.header}>
           <div>
@@ -118,21 +97,7 @@ export default function PatternLibraryScreen({ onOpenViewer }: Props) {
               >
                 <div className={styles.icon}>📄</div>
                 <div className={styles.info}>
-                  {editingId === p.id ? (
-                    <input
-                      className={styles.nameInput}
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onBlur={commitEdit}
-                      onKeyDown={handleEditKeyDown}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                    />
-                  ) : (
-                    <span className={styles.name} onClick={(e) => startEdit(e, p)}>
-                      {p.name}
-                    </span>
-                  )}
+                  <span className={styles.name}>{p.name}</span>
                   {p.designer && <span className={styles.designer}>{p.designer}</span>}
                   <span className={styles.meta}>{formatBytes(p.fileSize)} · {formatDate(p.dateAdded)}</span>
                 </div>
