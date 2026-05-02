@@ -92,25 +92,18 @@ Let users document their patterns properly. Currently patterns are named from th
 - [ ] "Can I start this?" — instant answer based on current stock
 - [ ] Mark shopping list items as bought → auto-update inventory
 
-## Phase 7 — AI & Camera Features
-For physical/paper patterns and loose skeins — cases where there's no PDF to extract from. Requires browser camera access (WebRTC) and an AI/vision backend. (Digital PDF legend extraction is already handled in Phase 5e.)
-
-- [ ] **Barcode scanning** — point camera at a floss skein's barcode to add it to inventory instantly
-- [ ] **AI legend scanning** — photograph a paper pattern's color key; AI extracts DMC numbers and cross-references against your stash
-- [ ] **Shopping list from legend scan** — auto-generate what to buy based on a scanned legend vs. current inventory
-
-## Phase 8 — Sync & Extras
+## Phase 7 — Sync & Extras
 - [ ] Cloud backup / sync inventory and patterns across devices
 - [ ] Share shopping list or pattern progress
 - [ ] Notes per color (brand, where purchased, substitute colors)
 
-## Phase 9 — Multi-Brand Thread Support
+## Phase 8 — Multi-Brand Thread Support
 - [ ] Add inventory support for other popular brands: Anchor, J&P Coats, Madeira, Cosmo, Weeks Dye Works, The Gentle Art
 - [ ] Cross-brand conversion charts (e.g. DMC 321 ↔ Anchor 9046)
 - [ ] User can set a preferred brand per pattern or globally
 - [ ] Patterns that list multiple brand codes show all equivalents
 
-## Phase 10 — Community (Nice to Have)
+## Phase 9 — Community (Nice to Have)
 Requires a backend and user accounts.
 
 - [ ] User profiles
@@ -120,3 +113,10 @@ Requires a backend and user accounts.
 - [ ] Forums / discussion boards by topic (patterns, techniques, brands)
 - [ ] Pattern recommendations from the community
 - [ ] Finished object (FO) gallery — show off completed projects
+
+## Phase 10 — AI & Camera Features
+For physical/paper patterns and loose skeins — cases where there's no PDF to extract from. Requires browser camera access (WebRTC) and an AI/vision backend. (Digital PDF legend extraction is already handled in Phase 5e.)
+
+- [ ] **Barcode scanning** — point camera at a floss skein's barcode to add it to inventory instantly
+- [ ] **AI legend scanning** — photograph a paper pattern's color key; AI extracts DMC numbers and cross-references against your stash
+- [ ] **Shopping list from legend scan** — auto-generate what to buy based on a scanned legend vs. current inventory
