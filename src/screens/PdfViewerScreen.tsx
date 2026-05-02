@@ -173,8 +173,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     for (let i = 0; i < cssH; i++) rowBright[i] = rowAcc[i] / rowNorm
     for (let i = 0; i < cssW; i++) colBright[i] = colAcc[i] / colNorm
 
-    // Returns the SMALLEST period where the best-phase score exceeds a threshold.
-    // Iterating small→large finds the fundamental cell period before bold-line harmonics.
+    // Returns the SMALLEST period (0.25px resolution) where the best-phase score exceeds a
+    // threshold. Searching float periods with linear interpolation avoids the integer-period
+    // drift problem where a period of 11.76px would never cleanly align on any integer grid.
     const findBestGrid = (profile: Float64Array, minP: number, maxP: number) => {
       const N = profile.length
       if (N < minP * 3) return null
@@ -186,13 +187,22 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       const std = Math.sqrt(variance / N)
       if (std < 0.5) return null  // image too uniform — no detectable grid
 
-      const THRESHOLD = 0.9  // fundamental lines score ~1.5-2×; bold-line sub-harmonics ~0.5×
+      const lerp = (pos: number): number => {
+        const lo = pos | 0
+        const hi = lo + 1
+        return hi < N ? profile[lo] + (pos - lo) * (profile[hi] - profile[lo]) : profile[lo]
+      }
 
-      for (let P = minP; P <= Math.min(maxP, (N / 3) | 0); P++) {
+      const THRESHOLD = 0.9
+      const clampedMax = Math.min(maxP, N / 3)
+
+      for (let s = 0; minP + s * 0.25 <= clampedMax; s++) {
+        const P = minP + s * 0.25
         let bestScore = 0, bestPhase = -1
-        for (let phase = 0; phase < P; phase++) {
+        for (let ps = 0; ps * 0.5 < P; ps++) {
+          const phase = ps * 0.5
           let sum = 0, count = 0
-          for (let pos = phase; pos < N; pos += P) { sum += profile[pos]; count++ }
+          for (let pos = phase; pos < N; pos += P) { sum += lerp(pos); count++ }
           if (count < 3) continue
           const score = (mean - sum / count) / std
           if (score > bestScore) { bestScore = score; bestPhase = phase }
@@ -208,11 +218,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     // Analyse the central 70% to skip headers, footers, and legend areas at page edges.
     const rowCropStart = (cssH * 0.15) | 0
     const rowSub = rowBright.subarray(rowCropStart, (cssH * 0.85) | 0)
-    const rowGrid = findBestGrid(rowSub, 3, Math.min(60, (rowSub.length / 3) | 0))
+    const rowGrid = findBestGrid(rowSub, 3, Math.min(120, rowSub.length / 3))
 
     const colCropStart = (cssW * 0.15) | 0
     const colSub = colBright.subarray(colCropStart, (cssW * 0.85) | 0)
-    const colGrid = findBestGrid(colSub, 3, Math.min(60, (colSub.length / 3) | 0))
+    const colGrid = findBestGrid(colSub, 3, Math.min(120, colSub.length / 3))
 
     if (!rowGrid || !colGrid) { setDetectedLines(null); return }
 
@@ -224,6 +234,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     for (let y = rowPhase; y < cssH; y += rowGrid.period) h.push(y)
     const v: number[] = []
     for (let x = colPhase; x < cssW; x += colGrid.period) v.push(x)
+
+    console.log(
+      `Grid detection: ${v.length}cols × ${h.length}rows = ${v.length * h.length} stitches`,
+      `(cellW=${colGrid.period.toFixed(2)} cellH=${rowGrid.period.toFixed(2)})`,
+    )
 
     setDetectedLines({ h, v })
   }, [])
