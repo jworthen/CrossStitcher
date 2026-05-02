@@ -274,9 +274,15 @@ brand labels — other brands need to be entered by hand.
 
 **A color I own isn't in the non-DMC catalog.**
 Thready's non-DMC catalogs are limited to colors that have a documented DMC
-cross-reference. Anchor, Madeira, and Cosmo coverage is decent for common
-colors; hand-dyed brands (Weeks, Gentle Art) are sparse. We're tracking a
-"request missing brands/colors" feature on the roadmap.
+cross-reference. Anchor and Madeira coverage is decent for common colors;
+hand-dyed brands (Weeks, Gentle Art) are sparse. To request a specific
+color or brand:
+
+- Open the **Convert** modal — when a code has no match, a "Request this
+  color →" button appears that opens a pre-filled GitHub issue.
+- Or use **Actions → Request a missing color** on the Floss tab.
+
+Both links go to the project's GitHub issues page.
 
 **I marked DMC 321 in stock but Anchor 9046 still shows missing (or vice
 versa).**

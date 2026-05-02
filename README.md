@@ -18,9 +18,10 @@ A web app for managing your cross-stitch projects — track your DMC floss inven
 - Inventory saves automatically in your browser (localStorage)
 
 ### Cross-Brand Conversion
-- Built-in conversion chart (e.g. DMC 321 ↔ Anchor 9046)
+- Built-in conversion chart (e.g. DMC 321 ↔ Anchor 9046) with ~350 entries
 - "Convert" button opens a small utility: pick a source brand, type a code, see equivalents in every other brand
 - Coverage is partial: DMC ships a full catalog (~480 colors); other brands are limited to entries we have a documented cross-reference for. Hand-dyed brands (Weeks, Gentle Art) are flagged as approximate.
+- "Request a missing color" link (in the Convert modal and the Floss tab Actions menu) opens a pre-filled GitHub issue for missing brands or specific codes
 - PDF scanner can extract Anchor / Madeira / Cosmo codes from a pattern's legend and convert to DMC
 
 ### Pattern Library

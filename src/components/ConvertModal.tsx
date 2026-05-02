@@ -5,6 +5,7 @@ import {
   BrandId,
   CONVERSIONS,
   brandCodeFor,
+  buildColorRequestUrl,
   dmcFromBrandCode,
 } from '../data/brands'
 import { DMC_COLORS } from '../data/dmcColors'
@@ -83,9 +84,19 @@ export default function ConvertModal({ onClose }: Props) {
           </div>
 
           {result && result.dmc === null && (
-            <p className={styles.hint}>
-              No match for {BRAND_BY_ID[sourceBrand].shortName} <strong>{code}</strong> in the conversion chart.
-            </p>
+            <div className={styles.noMatch}>
+              <p className={styles.hint}>
+                No match for {BRAND_BY_ID[sourceBrand].shortName} <strong>{code}</strong> in the conversion chart.
+              </p>
+              <a
+                className={styles.requestLink}
+                href={buildColorRequestUrl({ brand: sourceBrand, code })}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Request this color →
+              </a>
+            </div>
           )}
 
           {result && result.dmc && (
@@ -128,6 +139,18 @@ export default function ConvertModal({ onClose }: Props) {
             </p>
           )}
         </div>
+
+        <footer className={styles.footer}>
+          Coverage is partial.{' '}
+          <a
+            className={styles.footerLink}
+            href={buildColorRequestUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Request a missing color or brand →
+          </a>
+        </footer>
       </div>
     </div>
   )

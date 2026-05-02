@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { FlossStatus } from '../data/dmcColors'
-import { BRANDS, BRAND_BY_ID, BrandColor, BrandId, catalogFor } from '../data/brands'
+import { BRANDS, BRAND_BY_ID, BrandColor, BrandId, buildColorRequestUrl, catalogFor } from '../data/brands'
 import { useInventory } from '../hooks/useInventory'
 import { useColorNotes } from '../hooks/useColorNotes'
 import { usePreferredBrand } from '../hooks/usePreferredBrand'
@@ -367,6 +367,17 @@ export default function FlossListScreen() {
                 <button className={styles.dropdownItem} onClick={handleExportJSON}>
                   Export as JSON
                 </button>
+                <div className={styles.dropdownDivider} />
+                <a
+                  className={styles.dropdownItem}
+                  href={buildColorRequestUrl({ brand })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowActions(false)}
+                >
+                  Request a missing color
+                  <span className={styles.dropdownHint}>Opens GitHub issues</span>
+                </a>
                 <div className={styles.dropdownDivider} />
                 <button
                   className={`${styles.dropdownItem} ${resetPending ? styles.dropdownConfirm : styles.dropdownDanger}`}

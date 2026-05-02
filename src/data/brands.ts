@@ -512,3 +512,33 @@ export function catalogFor(brand: BrandId): BrandColor[] {
   return out
 }
 
+// ── Color request link ──────────────────────────────────────────────────────
+
+const COLOR_REQUEST_REPO = 'jworthen/crossstitcher'
+
+/**
+ * Builds a GitHub "new issue" URL with a pre-filled template asking for a
+ * missing brand/color in the conversion chart. Opens in the user's browser
+ * so they can submit it without leaving Thready.
+ */
+export function buildColorRequestUrl(opts: { brand?: BrandId; code?: string } = {}): string {
+  const brandName = opts.brand ? BRAND_BY_ID[opts.brand].name : ''
+  const code = (opts.code ?? '').trim()
+  const titleParts = ['Color request']
+  if (brandName) titleParts.push(brandName)
+  if (code) titleParts.push(code)
+  const title = titleParts.join(': ').replace(/: : /, ': ')
+
+  const body = [
+    `**Brand:** ${brandName || '(specify)'}`,
+    `**Code:** ${code || '(specify)'}`,
+    `**DMC equivalent (if known):** `,
+    `**Color name (if known):** `,
+    ``,
+    `Please add this to Thready's conversion chart, or let me know if there's no documented equivalent.`,
+  ].join('\n')
+
+  const params = new URLSearchParams({ title, body, labels: 'color-request' })
+  return `https://github.com/${COLOR_REQUEST_REPO}/issues/new?${params.toString()}`
+}
+
