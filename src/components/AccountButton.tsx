@@ -33,7 +33,10 @@ export default function AccountButton() {
   const wrap = async (fn: () => Promise<void>) => {
     setBusy(true); setError(null)
     try { await fn(); setOpen(false) }
-    catch (e) { setError(friendlyAuthError(e)) }
+    catch (e) {
+      console.error('[Thready auth]', e)  // surfaces the raw Firebase code
+      setError(friendlyAuthError(e))
+    }
     finally { setBusy(false) }
   }
 
