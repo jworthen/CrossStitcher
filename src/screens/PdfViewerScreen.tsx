@@ -327,18 +327,22 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
     if (!rowGrid || !colGrid) { setDetectedLines(null); return }
 
+    // Cross-stitch cells are always square — average the two independently-detected
+    // periods so that rounding differences on each axis don't produce a skewed grid.
+    const cellSize = (rowGrid.period + colGrid.period) / 2
+
     // Adjust phase back to full-page absolute coordinates.
-    const rowPhase = (rowGrid.phase + rowCropStart) % rowGrid.period
-    const colPhase = (colGrid.phase + colCropStart) % colGrid.period
+    const rowPhase = (rowGrid.phase + rowCropStart) % cellSize
+    const colPhase = (colGrid.phase + colCropStart) % cellSize
 
     const h: number[] = []
-    for (let y = rowPhase; y < cssH; y += rowGrid.period) h.push(y)
+    for (let y = rowPhase; y < cssH; y += cellSize) h.push(y)
     const v: number[] = []
-    for (let x = colPhase; x < cssW; x += colGrid.period) v.push(x)
+    for (let x = colPhase; x < cssW; x += cellSize) v.push(x)
 
     console.log(
       `Grid detection: ${v.length}cols × ${h.length}rows = ${v.length * h.length} stitches`,
-      `(cellW=${colGrid.period.toFixed(2)} cellH=${rowGrid.period.toFixed(2)})`,
+      `(cellSize=${cellSize.toFixed(2)} from rowPeriod=${rowGrid.period.toFixed(2)} colPeriod=${colGrid.period.toFixed(2)})`,
     )
 
     setDetectedLines({ h, v })
