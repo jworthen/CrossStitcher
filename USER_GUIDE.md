@@ -36,8 +36,8 @@ Each color has three states:
 
 ### Search and filter
 
-- **Search box** — type a DMC number (e.g. `321`), a code from another brand
-  (e.g. `Anchor 9046` or just `9046`), or a color name (e.g. `coral`).
+- **Search box** — type a code (e.g. `321`) or a color name (e.g. `coral`).
+  Search is scoped to the active brand's catalog.
 - **Filter tabs** — `All`, `In Stock`, `Low`, `Missing`. Combine with search to
   narrow down further (e.g. find every "low" red).
 
@@ -48,21 +48,24 @@ Each color has three states:
 - **S / M / L** — pick a row size. Compact fits more colors on screen; spacious
   is easier on phones.
 
-### Preferred brand
+### Switching between brands
 
-The toolbar has a brand picker (DMC / Anchor / Madeira / Cosmo / J&P / Weeks /
-Gentle Art). Pick the brand whose numbering you want to see prominently. The
-DMC number always appears alongside as a fallback so nothing gets lost in
-translation.
+The toolbar has a brand picker: DMC / Anchor / Madeira / Cosmo / J&P / Weeks /
+Gentle Art. Each brand has its **own independent inventory** — switching the
+dropdown flips the catalog, the inventory marks, the color notes, and bulk
+actions to that brand. Marking Anchor 9046 as "in stock" does *not* mark
+DMC 321 as in stock — they're tracked separately, even when they're cross-
+references for the same physical color.
 
-If a particular DMC color has no equivalent in the chosen brand's chart,
-Thready shows "no <brand> match" instead of a code. The conversion data is
-partial — most common colors are covered, but hand-dyed brands like Weeks Dye
-Works and The Gentle Art are approximate by their nature, so coverage there is
-sparse.
+DMC ships with its full ~480-color catalog. The other brands show a partial
+catalog drawn from Thready's cross-reference chart — only colors where we
+have a documented equivalent. The header subtitle says "partial catalog" so
+you know up front. Hand-dyed brands (Weeks, Gentle Art) are particularly
+sparse since their colors are variegated and don't have exact 1:1
+conversions.
 
-You can also set a different brand **per pattern** from the pattern's Info
-tab — useful when a kit ships in Anchor but your stash is DMC.
+Use the **Convert** button (next to the search box) any time you want to
+translate a code from one brand to another.
 
 ### Bulk actions (the "Actions ▾" menu)
 
@@ -172,10 +175,10 @@ PDFs (scanned images), use manual add.
 
 #### Manual add
 
-Type a color number in your preferred brand's numbering (the placeholder
-updates to match) and (optionally) a stitch count, then tap **Add**. Non-DMC
-codes are converted to DMC behind the scenes so cross-references and
-inventory lookups still work.
+Type a DMC number and (optionally) a stitch count, then tap **Add**. Pattern
+color lists are stored as DMC numbers regardless of which brand you stitch
+from — that keeps the data consistent across patterns. To go from a non-DMC
+code to DMC, use the **Convert** utility on the Floss tab.
 
 #### Working through the list
 
@@ -224,9 +227,6 @@ PDF filenames are often garbled order numbers. Use this tab to set:
 - **Fabric** — e.g. "14-count Aida", "28-count evenweave"
 - **Notes** — anywhere you want to record source URL, purchase date, kit
   contents, etc.
-- **Thread brand for this pattern** — overrides your global preferred brand
-  just for this pattern. Default is "follow global". Useful when one kit
-  uses Anchor but the rest of your stash is DMC.
 
 All fields save when you tap out of them.
 
@@ -272,10 +272,17 @@ The PDF probably has no selectable text (it's a scanned image). Add the colors
 manually. Also note: scan only recognizes DMC, Anchor, Madeira, and Cosmo
 brand labels — other brands need to be entered by hand.
 
-**My color shows "no <brand> match".**
-Thready's conversion chart covers most common colors but isn't exhaustive,
-especially for hand-dyed brands (Weeks Dye Works, The Gentle Art). The DMC
-number is always shown so you can look up an equivalent yourself.
+**A color I own isn't in the non-DMC catalog.**
+Thready's non-DMC catalogs are limited to colors that have a documented DMC
+cross-reference. Anchor, Madeira, and Cosmo coverage is decent for common
+colors; hand-dyed brands (Weeks, Gentle Art) are sparse. We're tracking a
+"request missing brands/colors" feature on the roadmap.
+
+**I marked DMC 321 in stock but Anchor 9046 still shows missing (or vice
+versa).**
+That's intentional. Each brand has its own inventory namespace — owning DMC
+321 doesn't automatically mean you own its Anchor equivalent. If you want to
+mark both, switch the dropdown and mark each one.
 
 **The auto-detected grid is wrong.**
 Tap **Adjust Grid** and calibrate manually. Zoom in first for precision.

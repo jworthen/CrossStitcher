@@ -1,10 +1,15 @@
-// Cross-brand floss conversion data.
+// Cross-brand floss conversion data and per-brand color catalogs.
 //
-// DMC is treated as canonical — every other brand maps to a DMC number, and
-// Thready's inventory is keyed by DMC. The conversions below are sourced from
-// publicly available manufacturer charts. Coverage is partial: hand-dyed
-// brands (Weeks Dye Works, The Gentle Art) are variegated and only have
-// approximate equivalents, so we include just well-known matches.
+// Each brand has its own inventory namespace — `dmc:321` and `anchor:9046`
+// are tracked independently. Brand catalogs are partial: DMC ships a full
+// list of ~480 colors; other brands are derived from the curated conversion
+// chart below, so their browsable catalogs are limited to colors we have a
+// confirmed cross-reference for. Hex values are inherited from the DMC
+// equivalent (an approximation — the actual brand's red is not literally the
+// same as DMC's). Hand-dyed brands (Weeks, Gentle Art) are intentionally
+// sparse since their conversions are approximate by nature.
+
+import { DMC_COLORS, DmcColor } from './dmcColors'
 
 export type BrandId = 'dmc' | 'anchor' | 'madeira' | 'cosmo' | 'jp_coats' | 'weeks' | 'gentle_art'
 
@@ -357,3 +362,46 @@ export function matchesAnyBrandCode(dmcNumber: string, query: string): boolean {
   }
   return false
 }
+
+// ── Per-brand catalogs ───────────────────────────────────────────────────────
+
+export interface BrandColor {
+  /** Brand-specific code, e.g. "9046" for Anchor or "321" for DMC. */
+  number: string
+  /** Approximate hex — borrowed from the DMC equivalent for non-DMC brands. */
+  hex: string
+  /** Color name (DMC's name; non-DMC brand names are not in the dataset). */
+  name: string
+}
+
+const dmcByNumber = new Map<string, DmcColor>(DMC_COLORS.map((c) => [c.number, c]))
+
+const catalogCache: Partial<Record<BrandId, BrandColor[]>> = {}
+
+/**
+ * Returns the browseable catalog for a brand. DMC returns the full curated
+ * list; other brands return entries derived from the conversion chart, so
+ * coverage is limited to colors we have a cross-reference for.
+ */
+export function catalogFor(brand: BrandId): BrandColor[] {
+  if (catalogCache[brand]) return catalogCache[brand]!
+
+  if (brand === 'dmc') {
+    catalogCache.dmc = DMC_COLORS.map((c) => ({ number: c.number, hex: c.hex, name: c.name }))
+    return catalogCache.dmc
+  }
+
+  const seen = new Set<string>()
+  const out: BrandColor[] = []
+  for (const [dmc, eqs] of Object.entries(CONVERSIONS)) {
+    const code = eqs[brand]
+    if (!code || seen.has(code)) continue
+    const dmcEntry = dmcByNumber.get(dmc)
+    if (!dmcEntry) continue
+    seen.add(code)
+    out.push({ number: code, hex: dmcEntry.hex, name: dmcEntry.name })
+  }
+  catalogCache[brand] = out
+  return out
+}
+

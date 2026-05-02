@@ -1,14 +1,31 @@
 import { useState, useCallback } from 'react'
 import { FlossStatus } from '../data/dmcColors'
+import { BrandId } from '../data/brands'
 
 const STORAGE_KEY = '@floss_inventory'
 
+// Keys are namespaced as `${brand}:${number}` (e.g. `dmc:321`, `anchor:9046`).
+// Legacy data was stored as bare numbers and is migrated to `dmc:NUMBER` on
+// first read.
 type Inventory = Record<string, FlossStatus>
+
+function makeKey(brand: BrandId, number: string): string {
+  return `${brand}:${number}`
+}
+
+function migrateLegacy(raw: Record<string, FlossStatus>): Inventory {
+  const out: Inventory = {}
+  for (const [k, v] of Object.entries(raw)) {
+    out[k.includes(':') ? k : `dmc:${k}`] = v
+  }
+  return out
+}
 
 function loadFromStorage(): Inventory {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as Inventory) : {}
+    if (!raw) return {}
+    return migrateLegacy(JSON.parse(raw))
   } catch {
     return {}
   }
@@ -25,39 +42,43 @@ function saveToStorage(inventory: Inventory) {
 export function useInventory() {
   const [inventory, setInventory] = useState<Inventory>(loadFromStorage)
 
-  const setStatus = useCallback((number: string, status: FlossStatus) => {
+  const setStatus = useCallback((brand: BrandId, number: string, status: FlossStatus) => {
     setInventory((prev) => {
-      const next = { ...prev, [number]: status }
+      const next = { ...prev, [makeKey(brand, number)]: status }
       saveToStorage(next)
       return next
     })
   }, [])
 
-  // Apply multiple status changes in a single state update (avoids N storage writes)
-  const bulkSetStatus = useCallback((updates: Array<{ number: string; status: FlossStatus }>) => {
-    setInventory((prev) => {
-      const next = { ...prev }
-      for (const { number, status } of updates) {
-        next[number] = status
-      }
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const bulkSetStatus = useCallback(
+    (updates: Array<{ brand: BrandId; number: string; status: FlossStatus }>) => {
+      setInventory((prev) => {
+        const next = { ...prev }
+        for (const { brand, number, status } of updates) {
+          next[makeKey(brand, number)] = status
+        }
+        saveToStorage(next)
+        return next
+      })
+    },
+    []
+  )
 
-  const cycleStatus = useCallback((number: string) => {
+  const cycleStatus = useCallback((brand: BrandId, number: string) => {
     setInventory((prev) => {
-      const current = prev[number] ?? 'unowned'
+      const k = makeKey(brand, number)
+      const current = prev[k] ?? 'unowned'
       const next: FlossStatus =
         current === 'unowned' ? 'in_stock' : current === 'in_stock' ? 'low' : 'unowned'
-      const updated = { ...prev, [number]: next }
+      const updated = { ...prev, [k]: next }
       saveToStorage(updated)
       return updated
     })
   }, [])
 
   const getStatus = useCallback(
-    (number: string): FlossStatus => inventory[number] ?? 'unowned',
+    (brand: BrandId, number: string): FlossStatus =>
+      inventory[makeKey(brand, number)] ?? 'unowned',
     [inventory]
   )
 

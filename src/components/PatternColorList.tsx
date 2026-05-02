@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { DMC_COLORS, FlossStatus } from '../data/dmcColors'
-import { BrandId, BRAND_BY_ID, brandCodeFor, dmcFromBrandCode } from '../data/brands'
 import { useInventory } from '../hooks/useInventory'
 import type { PatternColor } from '../hooks/usePatterns'
 import styles from './PatternColorList.module.css'
@@ -30,21 +29,17 @@ interface Props {
   colors: PatternColor[]
   onChange: (colors: PatternColor[]) => void
   patternName: string
-  brand: BrandId
 }
 
-export default function PatternColorList({ colors, onChange, patternName, brand }: Props) {
+export default function PatternColorList({ colors, onChange, patternName }: Props) {
   const [dmcInput, setDmcInput] = useState('')
   const [countInput, setCountInput] = useState('')
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
   const { getStatus, cycleStatus, bulkSetStatus } = useInventory()
 
   const handleAdd = () => {
-    const raw = dmcInput.trim()
-    if (!raw) return
-    // If the user is adding under a non-DMC preferred brand, try to convert.
-    // Falls back to the literal value if the code isn't in our chart.
-    const num = brand === 'dmc' ? raw : (dmcFromBrandCode(brand, raw) ?? raw)
+    const num = dmcInput.trim()
+    if (!num) return
     if (colors.some((c) => c.dmcNumber.toLowerCase() === num.toLowerCase())) {
       setDmcInput('')
       return
@@ -79,7 +74,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
     const needBuy: string[] = []  // canonical numbers for missing+low
     for (const color of colors) {
       const key = canonicalNumberFor(color)
-      const status = getStatus(key)
+      const status = getStatus('dmc', key)
       if (status === 'unowned') { missing++; needBuy.push(key) }
       else if (status === 'low') { low++; needBuy.push(key) }
       else owned++
@@ -89,7 +84,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
 
   const handleMarkAllBought = () => {
     if (inventorySummary.needBuy.length === 0) return
-    bulkSetStatus(inventorySummary.needBuy.map((number) => ({ number, status: 'in_stock' as FlossStatus })))
+    bulkSetStatus(inventorySummary.needBuy.map((number) => ({ brand: 'dmc' as const, number, status: 'in_stock' as FlossStatus })))
   }
 
   const totalStitches = colors.reduce((s, c) => s + (c.stitchCount ?? 0), 0)
@@ -97,8 +92,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
   const doneCount = colors.filter((c) => c.done).length
   const hasSymbols = colors.some((c) => c.symbol || c.symbolImage)
 
-  // Format a list of colors as "<brand> NNN — Name (N skeins)" lines.
-  // When the preferred brand is non-DMC, also append the DMC number for clarity.
+  // Format a list of colors as "DMC NNN — Name (N skeins)" lines.
   const formatColorLines = (items: PatternColor[]): string =>
     items.map((c) => {
       const dmc = DMC_BY_NUMBER.get(c.dmcNumber.toLowerCase())
@@ -106,18 +100,12 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
       const qty = c.skeinCount ? ` (${c.skeinCount} skein${c.skeinCount === 1 ? '' : 's'})`
         : c.stitchCount ? ` (${c.stitchCount.toLocaleString()} sts)`
         : ''
-      let label = `DMC ${c.dmcNumber}`
-      if (brand !== 'dmc') {
-        const code = brandCodeFor(brand, c.dmcNumber)
-        const sn = BRAND_BY_ID[brand].shortName
-        label = code ? `${sn} ${code} (DMC ${c.dmcNumber})` : `DMC ${c.dmcNumber}`
-      }
-      return `• ${label} — ${name}${qty}`
+      return `• DMC ${c.dmcNumber} — ${name}${qty}`
     }).join('\n')
 
   const buildShoppingText = (): string => {
     const needed = colors.filter((c) => {
-      const s = getStatus(canonicalNumberFor(c))
+      const s = getStatus('dmc', canonicalNumberFor(c))
       return s === 'unowned' || s === 'low'
     })
     const lines = [`Shopping list — ${patternName}`]
@@ -171,7 +159,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
         <input
           className={styles.addInput}
           type="text"
-          placeholder={`${BRAND_BY_ID[brand].shortName} #`}
+          placeholder="DMC #"
           value={dmcInput}
           onChange={(e) => setDmcInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -229,9 +217,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
       {colors.length === 0 ? (
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>No colors yet</p>
-          <p className={styles.emptyHint}>
-            Add {BRAND_BY_ID[brand].shortName} numbers from your pattern's legend
-          </p>
+          <p className={styles.emptyHint}>Add DMC numbers from your pattern's legend</p>
         </div>
       ) : (
         <>
@@ -241,7 +227,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
               const hex = dmc?.hex ?? '#BBBBBB'
               const name = dmc?.name ?? 'Unknown color'
               const invKey = canonicalNumberFor(color)
-              const invStatus = getStatus(invKey)
+              const invStatus = getStatus('dmc', invKey)
               const badge = STATUS_BADGE[invStatus]
               const rowStatusClass =
                 invStatus === 'in_stock' ? styles.rowInStock :
@@ -267,17 +253,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
                     }}
                   />
                   <div className={styles.info}>
-                    <span className={styles.number}>
-                      {brand === 'dmc'
-                        ? `DMC ${color.dmcNumber}`
-                        : (() => {
-                            const code = brandCodeFor(brand, color.dmcNumber)
-                            const sn = BRAND_BY_ID[brand].shortName
-                            return code
-                              ? <>{sn} {code} <span className={styles.dmcAlt}>· DMC {color.dmcNumber}</span></>
-                              : <>DMC {color.dmcNumber} <span className={styles.dmcAlt}>· no {sn} match</span></>
-                          })()}
-                    </span>
+                    <span className={styles.number}>{color.dmcNumber}</span>
                     <span className={styles.name}>{name}</span>
                   </div>
                   {color.stitchCount ? (
@@ -289,7 +265,7 @@ export default function PatternColorList({ colors, onChange, patternName, brand 
                   )}
                   <button
                     className={`${styles.invBadge} ${badge.className}`}
-                    onClick={() => cycleStatus(invKey)}
+                    onClick={() => cycleStatus('dmc', invKey)}
                     aria-label={`inventory: ${badge.aria} (tap to change)`}
                     title={`Inventory: ${badge.aria}`}
                   >

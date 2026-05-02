@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { DMC_COLORS, DmcColor, FlossStatus } from '../data/dmcColors'
-import { BRANDS, matchesAnyBrandCode } from '../data/brands'
+import { FlossStatus } from '../data/dmcColors'
+import { BRANDS, BRAND_BY_ID, BrandColor, BrandId, catalogFor } from '../data/brands'
 import { useInventory } from '../hooks/useInventory'
 import { useColorNotes } from '../hooks/useColorNotes'
 import { usePreferredBrand } from '../hooks/usePreferredBrand'
 import { useDarkMode } from '../hooks/useDarkMode'
 import FlossItem, { Density } from '../components/FlossItem'
+import ConvertModal from '../components/ConvertModal'
 import styles from './FlossListScreen.module.css'
 
 type FilterTab = 'all' | 'in_stock' | 'low' | 'unowned'
@@ -16,7 +17,7 @@ const DENSITY_OPTIONS: { key: Density; label: string }[] = [
   { key: 'comfortable', label: 'M' },
   { key: 'spacious', label: 'L' },
 ]
-type ListRow = { type: 'header'; label: string } | { type: 'color'; color: DmcColor }
+type ListRow = { type: 'header'; label: string } | { type: 'color'; color: BrandColor }
 
 const TABS: { key: FilterTab; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -24,10 +25,6 @@ const TABS: { key: FilterTab; label: string }[] = [
   { key: 'low', label: 'Low' },
   { key: 'unowned', label: 'Missing' },
 ]
-
-const UNIQUE_COLORS: DmcColor[] = Array.from(
-  new Map(DMC_COLORS.map((c) => [c.number, c])).values()
-)
 
 // ── Color family helpers ──────────────────────────────────────────────────────
 
@@ -95,7 +92,7 @@ function downloadFile(content: string, filename: string, type: string) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FlossListScreen() {
-  const { inventory, getStatus, cycleStatus, setStatus, bulkSetStatus } = useInventory()
+  const { inventory, getStatus, cycleStatus, bulkSetStatus } = useInventory()
   const { getNote, setNote } = useColorNotes()
   const [brand, setBrand] = usePreferredBrand()
   const [isDark, toggleDark] = useDarkMode()
@@ -107,7 +104,12 @@ export default function FlossListScreen() {
   )
   const [showActions, setShowActions] = useState(false)
   const [resetPending, setResetPending] = useState(false)
+  const [showConvert, setShowConvert] = useState(false)
   const actionsRef = useRef<HTMLDivElement>(null)
+
+  // Active brand's catalog. Switching the brand selector flips this entirely —
+  // each brand has its own browseable color list and its own inventory.
+  const colors = useMemo(() => catalogFor(brand), [brand])
 
   const handleDensity = (d: Density) => {
     setDensity(d)
@@ -128,23 +130,22 @@ export default function FlossListScreen() {
   }, [showActions])
 
   const counts = useMemo(() => {
-    const inStock = UNIQUE_COLORS.filter((c) => getStatus(c.number) === 'in_stock').length
-    const low = UNIQUE_COLORS.filter((c) => getStatus(c.number) === 'low').length
-    return { inStock, low, total: UNIQUE_COLORS.length }
-  }, [inventory, getStatus])
+    const inStock = colors.filter((c) => getStatus(brand, c.number) === 'in_stock').length
+    const low = colors.filter((c) => getStatus(brand, c.number) === 'low').length
+    return { inStock, low, total: colors.length }
+  }, [colors, brand, inventory, getStatus])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return UNIQUE_COLORS.filter((c) => {
+    return colors.filter((c) => {
       const matchesSearch =
         !q ||
         c.number.toLowerCase().includes(q) ||
-        c.name.toLowerCase().includes(q) ||
-        matchesAnyBrandCode(c.number, q)
-      const matchesTab = activeTab === 'all' || getStatus(c.number) === activeTab
+        c.name.toLowerCase().includes(q)
+      const matchesTab = activeTab === 'all' || getStatus(brand, c.number) === activeTab
       return matchesSearch && matchesTab
     })
-  }, [search, activeTab, inventory, getStatus])
+  }, [search, activeTab, colors, brand, inventory, getStatus])
 
   const listRows = useMemo((): ListRow[] => {
     if (sortMode === 'number') {
@@ -174,24 +175,24 @@ export default function FlossListScreen() {
     return rows
   }, [filtered, sortMode])
 
-  // ── Bulk actions ────────────────────────────────────────────────────────────
+  // ── Bulk actions (act on the active brand's inventory only) ─────────────────
 
   const handleGoShopping = () => {
-    const updates = UNIQUE_COLORS
-      .filter((c) => getStatus(c.number) === 'low')
-      .map((c) => ({ number: c.number, status: 'in_stock' as FlossStatus }))
+    const updates = colors
+      .filter((c) => getStatus(brand, c.number) === 'low')
+      .map((c) => ({ brand, number: c.number, status: 'in_stock' as FlossStatus }))
     bulkSetStatus(updates)
     setShowActions(false)
   }
 
   const handleMarkVisible = (status: FlossStatus) => {
-    bulkSetStatus(filtered.map((c) => ({ number: c.number, status })))
+    bulkSetStatus(filtered.map((c) => ({ brand, number: c.number, status })))
     setShowActions(false)
   }
 
   const handleResetAll = () => {
     if (resetPending) {
-      bulkSetStatus(UNIQUE_COLORS.map((c) => ({ number: c.number, status: 'unowned' })))
+      bulkSetStatus(colors.map((c) => ({ brand, number: c.number, status: 'unowned' as FlossStatus })))
       setResetPending(false)
       setShowActions(false)
     } else {
@@ -199,27 +200,28 @@ export default function FlossListScreen() {
     }
   }
 
-  // ── Export ──────────────────────────────────────────────────────────────────
+  // ── Export (active brand only) ──────────────────────────────────────────────
 
   const handleExportCSV = () => {
-    const header = 'Number,Name,Hex,Status'
-    const rows = UNIQUE_COLORS.map(
-      (c) => `${c.number},"${c.name}",${c.hex},${getStatus(c.number)}`
+    const header = 'Brand,Number,Name,Hex,Status'
+    const rows = colors.map(
+      (c) => `${brand},${c.number},"${c.name}",${c.hex},${getStatus(brand, c.number)}`
     )
-    downloadFile([header, ...rows].join('\n'), 'thready-inventory.csv', 'text/csv')
+    downloadFile([header, ...rows].join('\n'), `thready-inventory-${brand}.csv`, 'text/csv')
     setShowActions(false)
   }
 
   const handleExportJSON = () => {
-    const data = UNIQUE_COLORS.map((c) => ({
+    const data = colors.map((c) => ({
+      brand,
       number: c.number,
       name: c.name,
       hex: c.hex,
-      status: getStatus(c.number),
+      status: getStatus(brand, c.number),
     }))
     downloadFile(
       JSON.stringify(data, null, 2),
-      'thready-inventory.json',
+      `thready-inventory-${brand}.json`,
       'application/json'
     )
     setShowActions(false)
@@ -234,10 +236,13 @@ export default function FlossListScreen() {
         {/* Header */}
         <header className={styles.header}>
           <div>
-            <h1 className={styles.title}>DMC Floss</h1>
+            <h1 className={styles.title}>{BRAND_BY_ID[brand].name} Floss</h1>
             <p className={styles.subtitle}>
               {counts.inStock + counts.low}/{counts.total} owned
               {counts.low > 0 && <> &middot; {counts.low} low</>}
+              {brand !== 'dmc' && (
+                <> &middot; partial catalog</>
+              )}
             </p>
           </div>
           <button
@@ -251,21 +256,30 @@ export default function FlossListScreen() {
 
         {/* Search */}
         <div className={styles.searchBar}>
-          <input
-            className={styles.searchInput}
-            type="text"
-            placeholder="Search by DMC, brand code, or name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          {search && (
-            <button className={styles.clearBtn} onClick={() => setSearch('')} aria-label="Clear">
-              ✕
-            </button>
-          )}
+          <div className={styles.searchInputWrap}>
+            <input
+              className={styles.searchInput}
+              type="text"
+              placeholder={`Search ${BRAND_BY_ID[brand].shortName} number or name…`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            {search && (
+              <button className={styles.clearBtn} onClick={() => setSearch('')} aria-label="Clear">
+                ✕
+              </button>
+            )}
+          </div>
+          <button
+            className={styles.convertBtn}
+            onClick={() => setShowConvert(true)}
+            title="Convert a code between brands"
+          >
+            ⇄ Convert
+          </button>
         </div>
 
         {/* Tabs */}
@@ -410,12 +424,11 @@ export default function FlossListScreen() {
                 <FlossItem
                   key={row.color.number}
                   color={row.color}
-                  status={getStatus(row.color.number)}
-                  onPress={() => cycleStatus(row.color.number)}
+                  status={getStatus(brand, row.color.number)}
+                  onPress={() => cycleStatus(brand, row.color.number)}
                   density={density}
-                  note={getNote(row.color.number)}
-                  onNoteChange={(n) => setNote(row.color.number, n)}
-                  brand={brand}
+                  note={getNote(brand, row.color.number)}
+                  onNoteChange={(n) => setNote(brand, row.color.number, n)}
                 />
               )
             )}
@@ -426,6 +439,8 @@ export default function FlossListScreen() {
       <footer className={styles.footer}>
         Tap a color to cycle: missing → in stock → low
       </footer>
+
+      {showConvert && <ConvertModal onClose={() => setShowConvert(false)} />}
     </div>
   )
 }
