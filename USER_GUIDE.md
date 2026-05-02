@@ -36,7 +36,8 @@ Each color has three states:
 
 ### Search and filter
 
-- **Search box** — type a DMC number (e.g. `321`) or a color name (e.g. `coral`).
+- **Search box** — type a DMC number (e.g. `321`), a code from another brand
+  (e.g. `Anchor 9046` or just `9046`), or a color name (e.g. `coral`).
 - **Filter tabs** — `All`, `In Stock`, `Low`, `Missing`. Combine with search to
   narrow down further (e.g. find every "low" red).
 
@@ -46,6 +47,22 @@ Each color has three states:
   groups (Red, Blue, Yellow-Green, etc.).
 - **S / M / L** — pick a row size. Compact fits more colors on screen; spacious
   is easier on phones.
+
+### Preferred brand
+
+The toolbar has a brand picker (DMC / Anchor / Madeira / Cosmo / J&P / Weeks /
+Gentle Art). Pick the brand whose numbering you want to see prominently. The
+DMC number always appears alongside as a fallback so nothing gets lost in
+translation.
+
+If a particular DMC color has no equivalent in the chosen brand's chart,
+Thready shows "no <brand> match" instead of a code. The conversion data is
+partial — most common colors are covered, but hand-dyed brands like Weeks Dye
+Works and The Gentle Art are approximate by their nature, so coverage there is
+sparse.
+
+You can also set a different brand **per pattern** from the pattern's Info
+tab — useful when a kit ships in Anchor but your stash is DMC.
 
 ### Bulk actions (the "Actions ▾" menu)
 
@@ -140,10 +157,13 @@ This is the per-pattern legend.
 
 #### Auto-scan from PDF
 
-Tap **Scan PDF** to extract every DMC color the pattern uses. Thready:
+Tap **Scan PDF** to extract every color the pattern uses. Thready:
 
-- Reads the PDF text and finds rows that contain a literal "DMC" label
-- Pulls the DMC number, skein count, and crops the symbol image from each
+- Reads the PDF text and finds rows that contain a brand label — `DMC`,
+  `Anchor`, `Madeira`, or `Cosmo`
+- Converts non-DMC codes back to DMC via the conversion chart so your
+  inventory stays consistent
+- Pulls the color number, skein count, and crops the symbol image from each
   legend row
 - Skips rows already in your list
 
@@ -152,7 +172,10 @@ PDFs (scanned images), use manual add.
 
 #### Manual add
 
-Type a DMC number and (optionally) a stitch count, then tap **Add**.
+Type a color number in your preferred brand's numbering (the placeholder
+updates to match) and (optionally) a stitch count, then tap **Add**. Non-DMC
+codes are converted to DMC behind the scenes so cross-references and
+inventory lookups still work.
 
 #### Working through the list
 
@@ -201,6 +224,9 @@ PDF filenames are often garbled order numbers. Use this tab to set:
 - **Fabric** — e.g. "14-count Aida", "28-count evenweave"
 - **Notes** — anywhere you want to record source URL, purchase date, kit
   contents, etc.
+- **Thread brand for this pattern** — overrides your global preferred brand
+  just for this pattern. Default is "follow global". Useful when one kit
+  uses Anchor but the rest of your stash is DMC.
 
 All fields save when you tap out of them.
 
@@ -243,7 +269,13 @@ This also means:
 
 **"Scan PDF" found nothing.**
 The PDF probably has no selectable text (it's a scanned image). Add the colors
-manually.
+manually. Also note: scan only recognizes DMC, Anchor, Madeira, and Cosmo
+brand labels — other brands need to be entered by hand.
+
+**My color shows "no <brand> match".**
+Thready's conversion chart covers most common colors but isn't exhaustive,
+especially for hand-dyed brands (Weeks Dye Works, The Gentle Art). The DMC
+number is always shown so you can look up an equivalent yourself.
 
 **The auto-detected grid is wrong.**
 Tap **Adjust Grid** and calibrate manually. Zoom in first for precision.

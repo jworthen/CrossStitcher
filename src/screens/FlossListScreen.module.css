@@ -251,6 +251,30 @@ html[data-theme="dark"] .header {
   line-height: 1.4;
 }
 
+.brandSelect {
+  padding: 5px 8px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.brandSelect:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.brandSelect:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(50, 114, 176, 0.15);
+}
+
 .actionsBtn:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);

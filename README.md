@@ -7,13 +7,20 @@ A web app for managing your cross-stitch projects — track your DMC floss inven
 ### Floss Inventory
 - Browse the full DMC color list with hex swatches
 - Mark each color as **In Stock**, **Low**, or **Unowned** — tap to cycle
-- Search by DMC number or color name
+- Search by DMC number, brand-equivalent code, or color name
 - Filter by status: All / In Stock / Low / Missing
 - Sort numerically or group by color family
+- Per-color notes (brand, where purchased, substitute colors)
 - Bulk actions: mark all visible colors, clear Low → In Stock, reset inventory
 - Export inventory as CSV or JSON
 - Dark mode support
 - Inventory saves automatically in your browser (localStorage)
+
+### Multi-Brand Thread Support
+- Inventory supports DMC, Anchor, Madeira, Cosmo, J&P Coats, Weeks Dye Works, and The Gentle Art
+- Cross-brand conversion chart (e.g. DMC 321 ↔ Anchor 9046)
+- Pick a preferred brand globally, or override it per pattern
+- PDF scanner can extract Anchor / Madeira / Cosmo codes and convert to DMC
 
 ### Pattern Library
 - Upload PDF patterns from your device
@@ -34,10 +41,11 @@ A web app for managing your cross-stitch projects — track your DMC floss inven
 - Progress saves per pattern
 
 ### Color List
-- Scan PDF text to auto-detect DMC colors from a pattern's legend
+- Scan PDF text to auto-detect DMC, Anchor, Madeira, or Cosmo codes from a pattern's legend
 - Extracts skein counts and crops symbol images from the rendered page — works even with proprietary symbol fonts
-- Manual add/remove with optional stitch count entry
+- Manual add/remove with optional stitch count entry (in your preferred brand's numbering)
 - Mark colors done as you stitch; summary bar tracks colors and stitches completed
+- Share shopping list or progress via the Web Share API (with clipboard fallback)
 
 ## Getting Started
 
@@ -71,8 +79,11 @@ npm run build
 src/
   data/
     dmcColors.ts                    # Full DMC color list with hex values
+    brands.ts                       # Brand definitions + DMC↔other-brand conversion chart
   hooks/
     useInventory.ts                 # Inventory state + localStorage persistence
+    useColorNotes.ts                # Per-color notes + localStorage persistence
+    usePreferredBrand.ts            # Global preferred brand setting
     useDarkMode.ts                  # Dark mode toggle with system preference detection
     usePatterns.ts                  # Pattern library state + IndexedDB persistence
   components/

@@ -1,7 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { DMC_COLORS, DmcColor, FlossStatus } from '../data/dmcColors'
+import { BRANDS, matchesAnyBrandCode } from '../data/brands'
 import { useInventory } from '../hooks/useInventory'
 import { useColorNotes } from '../hooks/useColorNotes'
+import { usePreferredBrand } from '../hooks/usePreferredBrand'
 import { useDarkMode } from '../hooks/useDarkMode'
 import FlossItem, { Density } from '../components/FlossItem'
 import styles from './FlossListScreen.module.css'
@@ -95,6 +97,7 @@ function downloadFile(content: string, filename: string, type: string) {
 export default function FlossListScreen() {
   const { inventory, getStatus, cycleStatus, setStatus, bulkSetStatus } = useInventory()
   const { getNote, setNote } = useColorNotes()
+  const [brand, setBrand] = usePreferredBrand()
   const [isDark, toggleDark] = useDarkMode()
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
@@ -134,7 +137,10 @@ export default function FlossListScreen() {
     const q = search.trim().toLowerCase()
     return UNIQUE_COLORS.filter((c) => {
       const matchesSearch =
-        !q || c.number.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+        !q ||
+        c.number.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        matchesAnyBrandCode(c.number, q)
       const matchesTab = activeTab === 'all' || getStatus(c.number) === activeTab
       return matchesSearch && matchesTab
     })
@@ -248,7 +254,7 @@ export default function FlossListScreen() {
           <input
             className={styles.searchInput}
             type="text"
-            placeholder="Search by number or name…"
+            placeholder="Search by DMC, brand code, or name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoCapitalize="none"
@@ -304,6 +310,18 @@ export default function FlossListScreen() {
               </button>
             ))}
           </div>
+
+          <select
+            className={styles.brandSelect}
+            value={brand}
+            onChange={(e) => setBrand(e.target.value as typeof brand)}
+            aria-label="Preferred brand"
+            title="Show codes for this brand"
+          >
+            {BRANDS.map((b) => (
+              <option key={b.id} value={b.id}>{b.shortName}</option>
+            ))}
+          </select>
 
           <div className={styles.actionsWrapper} ref={actionsRef}>
             <button
@@ -397,6 +415,7 @@ export default function FlossListScreen() {
                   density={density}
                   note={getNote(row.color.number)}
                   onNoteChange={(n) => setNote(row.color.number, n)}
+                  brand={brand}
                 />
               )
             )}

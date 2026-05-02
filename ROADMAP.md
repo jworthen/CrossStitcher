@@ -97,11 +97,11 @@ Let users document their patterns properly. Currently patterns are named from th
 - [x] Share shopping list or pattern progress
 - [x] Notes per color (brand, where purchased, substitute colors)
 
-## Phase 8 — Multi-Brand Thread Support
-- [ ] Add inventory support for other popular brands: Anchor, J&P Coats, Madeira, Cosmo, Weeks Dye Works, The Gentle Art
-- [ ] Cross-brand conversion charts (e.g. DMC 321 ↔ Anchor 9046)
-- [ ] User can set a preferred brand per pattern or globally
-- [ ] Patterns that list multiple brand codes show all equivalents
+## Phase 8 — Multi-Brand Thread Support ✅
+- [x] Add inventory support for other popular brands: Anchor, J&P Coats, Madeira, Cosmo, Weeks Dye Works, The Gentle Art
+- [x] Cross-brand conversion charts (e.g. DMC 321 ↔ Anchor 9046)
+- [x] User can set a preferred brand per pattern or globally
+- [x] Patterns that list multiple brand codes show all equivalents
 
 ## Phase 9 — Community (Nice to Have)
 Requires a backend and user accounts.
