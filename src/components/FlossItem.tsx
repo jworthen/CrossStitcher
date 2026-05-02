@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { DmcColor, FlossStatus } from '../data/dmcColors'
 import styles from './FlossItem.module.css'
 
@@ -8,6 +9,8 @@ interface Props {
   status: FlossStatus
   onPress: () => void
   density?: Density
+  note: string
+  onNoteChange: (note: string) => void
 }
 
 const STATUS_CONFIG: Record<FlossStatus, { label: string; className: string; rowClassName: string; ariaLabel: string }> = {
@@ -23,31 +26,83 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 220
 }
 
-export default function FlossItem({ color, status, onPress, density = 'comfortable' }: Props) {
+export default function FlossItem({ color, status, onPress, density = 'comfortable', note, onNoteChange }: Props) {
   const config = STATUS_CONFIG[status]
   const light = isLightColor(color.hex)
   const rowDensity = density === 'compact' ? styles.densityCompact : density === 'spacious' ? styles.densitySpacious : ''
   const swatchDensity = density === 'compact' ? styles.swatchCompact : density === 'spacious' ? styles.swatchSpacious : ''
   const badgeDensity = density === 'compact' ? styles.badgeCompact : density === 'spacious' ? styles.badgeSpacious : ''
 
+  const [expanded, setExpanded] = useState(false)
+  const [draft, setDraft] = useState(note)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => { setDraft(note) }, [note])
+
+  useEffect(() => {
+    if (expanded) textareaRef.current?.focus()
+  }, [expanded])
+
+  const hasNote = note.trim().length > 0
+
+  const commit = () => {
+    if (draft !== note) onNoteChange(draft)
+  }
+
+  const handleNoteToggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setExpanded((v) => !v)
+  }
+
   return (
-    <li className={`${styles.row} ${config.rowClassName} ${rowDensity}`} onClick={onPress}>
-      <div
-        className={`${styles.swatch} ${light ? styles.swatchLight : ''} ${swatchDensity}`}
-        style={{ backgroundColor: color.hex }}
-        aria-hidden="true"
-      />
-      <div className={styles.info}>
-        <span className={styles.number}>{color.number}</span>
-        <span className={styles.name}>{color.name}</span>
+    <li className={styles.rowWrapper}>
+      <div className={`${styles.row} ${config.rowClassName} ${rowDensity}`} onClick={onPress}>
+        <div
+          className={`${styles.swatch} ${light ? styles.swatchLight : ''} ${swatchDensity}`}
+          style={{ backgroundColor: color.hex }}
+          aria-hidden="true"
+        />
+        <div className={styles.info}>
+          <span className={styles.number}>{color.number}</span>
+          <span className={styles.name}>{color.name}</span>
+        </div>
+        <button
+          className={`${styles.noteBtn} ${hasNote ? styles.noteBtnHasNote : ''} ${expanded ? styles.noteBtnOpen : ''}`}
+          onClick={handleNoteToggle}
+          aria-label={hasNote ? `edit note for ${color.number}` : `add note for ${color.number}`}
+          title={hasNote ? note : 'Add a note'}
+        >
+          {hasNote ? '✎' : '+'}
+        </button>
+        <div
+          className={`${styles.badge} ${config.className} ${badgeDensity}`}
+          role="img"
+          aria-label={config.ariaLabel}
+        >
+          {config.label}
+        </div>
       </div>
-      <div
-        className={`${styles.badge} ${config.className} ${badgeDensity}`}
-        role="img"
-        aria-label={config.ariaLabel}
-      >
-        {config.label}
-      </div>
+      {expanded && (
+        <div className={styles.notePanel} onClick={(e) => e.stopPropagation()}>
+          <textarea
+            ref={textareaRef}
+            className={styles.noteInput}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            placeholder="Brand, where purchased, substitute colors…"
+            rows={2}
+          />
+          <div className={styles.noteActions}>
+            <button
+              className={styles.noteCloseBtn}
+              onClick={() => { commit(); setExpanded(false) }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </li>
   )
 }

@@ -94,8 +94,8 @@ Let users document their patterns properly. Currently patterns are named from th
 
 ## Phase 7 — Sync & Extras
 - [ ] Cloud backup / sync inventory and patterns across devices
-- [ ] Share shopping list or pattern progress
-- [ ] Notes per color (brand, where purchased, substitute colors)
+- [x] Share shopping list or pattern progress
+- [x] Notes per color (brand, where purchased, substitute colors)
 
 ## Phase 8 — Multi-Brand Thread Support
 - [ ] Add inventory support for other popular brands: Anchor, J&P Coats, Madeira, Cosmo, Weeks Dye Works, The Gentle Art
