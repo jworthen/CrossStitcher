@@ -27,6 +27,20 @@ export default function App() {
 
   return (
     <>
+      <header style={{
+        flexShrink: 0,
+        padding: '12px 16px',
+        background: 'var(--color-surface)',
+        borderBottom: '1px solid var(--color-border)',
+        textAlign: 'center',
+      }}>
+        <span style={{
+          fontSize: '1.125rem',
+          fontWeight: 700,
+          color: 'var(--color-primary)',
+          letterSpacing: '-0.01em',
+        }}>Thready</span>
+      </header>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {screen === 'inventory' && <FlossListScreen />}
         {screen === 'patterns' && (
