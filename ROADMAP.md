@@ -70,9 +70,12 @@ Make the grid interactive.
 Track a pattern's color requirements. Unlocks Phase 6 inventory integration.
 
 - [x] Scan PDF text to auto-detect DMC color numbers from the legend
-- [x] Extract stitch counts and legend symbols from scanned rows
+- [x] Extract skein counts from scanned legend rows
+- [x] Extract symbol images by rendering each legend row to an offscreen canvas and cropping — works with proprietary symbol fonts that can't be text-extracted
+- [x] Only rows containing an explicit "DMC" brand label are accepted — prevents false positives from stitch counts, dimensions, or page numbers elsewhere in the PDF
 - [x] Manual add/remove as fallback for PDFs without extractable text
-- [x] Per-color progress: mark colors done, summary shows stitches done vs. remaining
+- [x] Per-color done tracking; summary bar shows colors and stitches completed vs. remaining
+- [x] Calibration dot scales inversely with zoom so it stays pin-sized at any zoom level
 
 ## Phase 5f — Pattern Metadata ✅
 Let users document their patterns properly. Currently patterns are named from the PDF filename, which is often an order number or garbled string.
