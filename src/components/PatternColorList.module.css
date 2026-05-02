@@ -373,6 +373,44 @@
   flex-shrink: 0;
 }
 
+/* ── Share bar ───────────────────────────────────────── */
+
+.shareBar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.shareBtn {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.shareBtn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.shareFeedback {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--color-green);
+  text-align: center;
+  padding: 7px 10px;
+}
+
 /* ── Desktop ─────────────────────────────────────────── */
 
 @media (min-width: 768px) {
@@ -391,5 +429,9 @@
 
   .summary {
     padding: 10px 24px;
+  }
+
+  .shareBar {
+    padding: 10px 24px 12px;
   }
 }

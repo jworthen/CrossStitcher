@@ -28,11 +28,13 @@ const STATUS_BADGE: Record<FlossStatus, { label: string; className: string; aria
 interface Props {
   colors: PatternColor[]
   onChange: (colors: PatternColor[]) => void
+  patternName: string
 }
 
-export default function PatternColorList({ colors, onChange }: Props) {
+export default function PatternColorList({ colors, onChange, patternName }: Props) {
   const [dmcInput, setDmcInput] = useState('')
   const [countInput, setCountInput] = useState('')
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null)
   const { getStatus, cycleStatus, bulkSetStatus } = useInventory()
 
   const handleAdd = () => {
@@ -89,6 +91,63 @@ export default function PatternColorList({ colors, onChange }: Props) {
   const doneStitches = colors.filter((c) => c.done).reduce((s, c) => s + (c.stitchCount ?? 0), 0)
   const doneCount = colors.filter((c) => c.done).length
   const hasSymbols = colors.some((c) => c.symbol || c.symbolImage)
+
+  // Format a list of colors as "DMC NNN — Name (N skeins)" lines.
+  const formatColorLines = (items: PatternColor[]): string =>
+    items.map((c) => {
+      const dmc = DMC_BY_NUMBER.get(c.dmcNumber.toLowerCase())
+      const name = dmc?.name ?? 'Unknown'
+      const qty = c.skeinCount ? ` (${c.skeinCount} skein${c.skeinCount === 1 ? '' : 's'})`
+        : c.stitchCount ? ` (${c.stitchCount.toLocaleString()} sts)`
+        : ''
+      return `• DMC ${c.dmcNumber} — ${name}${qty}`
+    }).join('\n')
+
+  const buildShoppingText = (): string => {
+    const needed = colors.filter((c) => {
+      const s = getStatus(canonicalNumberFor(c))
+      return s === 'unowned' || s === 'low'
+    })
+    const lines = [`Shopping list — ${patternName}`]
+    if (needed.length === 0) {
+      lines.push('', 'All colors in stock — ready to start!')
+    } else {
+      lines.push(`${needed.length} of ${colors.length} color${colors.length === 1 ? '' : 's'} to buy:`, '')
+      lines.push(formatColorLines(needed))
+    }
+    return lines.join('\n')
+  }
+
+  const buildProgressText = (): string => {
+    const lines = [`Progress — ${patternName}`, '']
+    lines.push(`Colors: ${doneCount} / ${colors.length} done`)
+    if (totalStitches > 0) {
+      const pct = Math.round((doneStitches / totalStitches) * 100)
+      lines.push(`Stitches: ${doneStitches.toLocaleString()} / ${totalStitches.toLocaleString()} (${pct}%)`)
+    }
+    return lines.join('\n')
+  }
+
+  const share = async (title: string, text: string) => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text })
+        return
+      }
+    } catch {
+      // user cancelled or share failed — fall through to clipboard
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      setShareFeedback('Copied to clipboard')
+    } catch {
+      setShareFeedback('Could not copy — share unavailable')
+    }
+    setTimeout(() => setShareFeedback(null), 2500)
+  }
+
+  const handleShareShopping = () => share(`Shopping list — ${patternName}`, buildShoppingText())
+  const handleShareProgress = () => share(`Progress — ${patternName}`, buildProgressText())
 
   const ready = colors.length > 0 && inventorySummary.missing === 0 && inventorySummary.low === 0
   const showReadiness = colors.length > 0
@@ -231,6 +290,21 @@ export default function PatternColorList({ colors, onChange }: Props) {
             <span>{doneCount} / {colors.length} colors done</span>
             {totalStitches > 0 && (
               <span>{doneStitches.toLocaleString()} / {totalStitches.toLocaleString()} stitches</span>
+            )}
+          </div>
+
+          <div className={styles.shareBar}>
+            {shareFeedback ? (
+              <span className={styles.shareFeedback}>{shareFeedback}</span>
+            ) : (
+              <>
+                <button className={styles.shareBtn} onClick={handleShareShopping}>
+                  Share shopping list
+                </button>
+                <button className={styles.shareBtn} onClick={handleShareProgress}>
+                  Share progress
+                </button>
+              </>
             )}
           </div>
         </>

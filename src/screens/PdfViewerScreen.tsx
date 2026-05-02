@@ -741,6 +741,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           )}
           <PatternColorList
             colors={patternColors}
+            patternName={metaName}
             onChange={(colors) => {
               setPatternColors(colors)
               savePatternColors(patternId, colors)

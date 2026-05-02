@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { DMC_COLORS, DmcColor, FlossStatus } from '../data/dmcColors'
 import { useInventory } from '../hooks/useInventory'
+import { useColorNotes } from '../hooks/useColorNotes'
 import { useDarkMode } from '../hooks/useDarkMode'
 import FlossItem, { Density } from '../components/FlossItem'
 import styles from './FlossListScreen.module.css'
@@ -93,6 +94,7 @@ function downloadFile(content: string, filename: string, type: string) {
 
 export default function FlossListScreen() {
   const { inventory, getStatus, cycleStatus, setStatus, bulkSetStatus } = useInventory()
+  const { getNote, setNote } = useColorNotes()
   const [isDark, toggleDark] = useDarkMode()
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
@@ -393,6 +395,8 @@ export default function FlossListScreen() {
                   status={getStatus(row.color.number)}
                   onPress={() => cycleStatus(row.color.number)}
                   density={density}
+                  note={getNote(row.color.number)}
+                  onNoteChange={(n) => setNote(row.color.number, n)}
                 />
               )
             )}
