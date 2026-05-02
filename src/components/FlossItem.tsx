@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { DmcColor, FlossStatus } from '../data/dmcColors'
+import { BrandId, BRAND_BY_ID, brandCodeFor } from '../data/brands'
 import styles from './FlossItem.module.css'
 
 export type Density = 'compact' | 'comfortable' | 'spacious'
@@ -11,6 +12,7 @@ interface Props {
   density?: Density
   note: string
   onNoteChange: (note: string) => void
+  brand: BrandId
 }
 
 const STATUS_CONFIG: Record<FlossStatus, { label: string; className: string; rowClassName: string; ariaLabel: string }> = {
@@ -26,7 +28,7 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 220
 }
 
-export default function FlossItem({ color, status, onPress, density = 'comfortable', note, onNoteChange }: Props) {
+export default function FlossItem({ color, status, onPress, density = 'comfortable', note, onNoteChange, brand }: Props) {
   const config = STATUS_CONFIG[status]
   const light = isLightColor(color.hex)
   const rowDensity = density === 'compact' ? styles.densityCompact : density === 'spacious' ? styles.densitySpacious : ''
@@ -63,7 +65,21 @@ export default function FlossItem({ color, status, onPress, density = 'comfortab
           aria-hidden="true"
         />
         <div className={styles.info}>
-          <span className={styles.number}>{color.number}</span>
+          <span className={styles.number}>
+            {brand === 'dmc' ? color.number : (() => {
+              const code = brandCodeFor(brand, color.number)
+              const shortName = BRAND_BY_ID[brand].shortName
+              return code
+                ? <>
+                    <span className={styles.brandPrimary}>{shortName} {code}</span>
+                    <span className={styles.dmcSecondary}> · DMC {color.number}</span>
+                  </>
+                : <>
+                    <span className={styles.dmcSecondary}>DMC {color.number}</span>
+                    <span className={styles.brandMissing}> · no {shortName} match</span>
+                  </>
+            })()}
+          </span>
           <span className={styles.name}>{color.name}</span>
         </div>
         <button

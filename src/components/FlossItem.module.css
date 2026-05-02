@@ -56,6 +56,24 @@
   line-height: 1.2;
 }
 
+.brandPrimary {
+  color: var(--color-text);
+}
+
+.dmcSecondary {
+  font-weight: 500;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.brandMissing {
+  font-weight: 500;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
 .name {
   font-size: 0.75rem;
   color: var(--color-text-muted);

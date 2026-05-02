@@ -6,6 +6,8 @@ import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { loadPatternData, saveGridConfig, saveProgress, savePatternColors, savePatternMeta, clearGridAndProgress } from '../hooks/usePatterns'
 import type { GridConfig, PatternColor } from '../hooks/usePatterns'
 import { DMC_COLORS } from '../data/dmcColors'
+import { BrandId, BRANDS, dmcFromBrandCode } from '../data/brands'
+import { usePreferredBrand } from '../hooks/usePreferredBrand'
 import PatternColorList from '../components/PatternColorList'
 import styles from './PdfViewerScreen.module.css'
 
@@ -71,6 +73,10 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [designer, setDesigner] = useState('')
   const [fabric, setFabric] = useState('')
   const [notes, setNotes] = useState('')
+  // Brand preference: '' means "follow global"; any BrandId overrides for this pattern.
+  const [patternBrand, setPatternBrand] = useState<BrandId | ''>('')
+  const [globalBrand] = usePreferredBrand()
+  const effectiveBrand: BrandId = patternBrand || globalBrand
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
   // Pre-rendered symbol ImageData for stitch color matching (keyed by DMC number)
@@ -98,6 +104,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       setDesigner(data.designer ?? '')
       setFabric(data.fabric ?? '')
       setNotes(data.notes ?? '')
+      setPatternBrand((data.preferredBrand as BrandId | undefined) ?? '')
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
         if (!cancelled) {
@@ -538,6 +545,34 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
             if (dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = idx; break }
           }
         }
+
+        // Tertiary: detect non-DMC brand labels (Anchor, Madeira, Cosmo) and
+        // convert to DMC via the brand-conversion chart. Lets us scan legends
+        // that don't list DMC numbers at all.
+        if (!dmcNum) {
+          const brandLabels: Array<{ label: RegExp; brand: BrandId }> = [
+            { label: /\bAnchor\b/i,  brand: 'anchor'  },
+            { label: /\bMadeira\b/i, brand: 'madeira' },
+            { label: /\bCosmo\b/i,   brand: 'cosmo'   },
+          ]
+          outer:
+          for (const { label, brand: br } of brandLabels) {
+            for (let idx = 0; idx < rowItems.length; idx++) {
+              if (!label.test(rowItems[idx].str)) continue
+              // Same-item form: "Anchor 9046"
+              const inline = rowItems[idx].str.match(new RegExp(`${label.source}\\s+([A-Za-z0-9]+)`, 'i'))
+              if (inline) {
+                const dmc = dmcFromBrandCode(br, inline[1])
+                if (dmc) { dmcNum = dmc; dmcItemIdx = idx; break outer }
+              }
+              // Adjacent-item form: "Anchor" then "9046"
+              if (idx + 1 < rowItems.length) {
+                const dmc = dmcFromBrandCode(br, rowItems[idx + 1].str.trim().split('/')[0].trim())
+                if (dmc) { dmcNum = dmc; dmcItemIdx = idx + 1; break outer }
+              }
+            }
+          }
+        }
         if (!dmcNum || results.has(dmcNum)) continue
 
         // Symbol: leftmost item. Digits are intentionally allowed — proprietary symbol fonts
@@ -634,7 +669,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     setScanning(false)
   }
 
-  const saveMetaField = (patch: Partial<{ name: string; designer: string; fabric: string; notes: string }>) => {
+  const saveMetaField = (patch: Partial<{ name: string; designer: string; fabric: string; notes: string; preferredBrand: string | undefined }>) => {
     savePatternMeta(patternId, patch)
   }
 
@@ -742,6 +777,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           <PatternColorList
             colors={patternColors}
             patternName={metaName}
+            brand={effectiveBrand}
             onChange={(colors) => {
               setPatternColors(colors)
               savePatternColors(patternId, colors)
@@ -796,6 +832,25 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
               onChange={(e) => setNotes(e.target.value)}
               onBlur={(e) => saveMetaField({ notes: e.target.value.trim() })}
             />
+          </div>
+          <div className={styles.infoField}>
+            <label className={styles.infoLabel}>
+              Thread brand for this pattern
+            </label>
+            <select
+              className={styles.infoInput}
+              value={patternBrand}
+              onChange={(e) => {
+                const v = e.target.value as BrandId | ''
+                setPatternBrand(v)
+                saveMetaField({ preferredBrand: v || undefined })
+              }}
+            >
+              <option value="">Use global default ({globalBrand.toUpperCase()})</option>
+              {BRANDS.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
           </div>
         </div>
       )}
