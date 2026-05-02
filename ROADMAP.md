@@ -92,8 +92,8 @@ Let users document their patterns properly. Currently patterns are named from th
 - [x] "Can I start this?" — instant answer based on current stock
 - [x] Mark shopping list items as bought → auto-update inventory
 
-## Phase 7 — Sync & Extras
-- [ ] Cloud backup / sync inventory and patterns across devices
+## Phase 7 — Sync & Extras ✅
+- [x] Cloud backup / sync inventory and patterns across devices (Firebase: Auth + Firestore + Storage)
 - [x] Share shopping list or pattern progress
 - [x] Notes per color (brand, where purchased, substitute colors)
 

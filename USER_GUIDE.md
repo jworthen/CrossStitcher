@@ -234,20 +234,52 @@ All fields save when you tap out of them.
 
 ## Where your data lives
 
-Everything is stored locally in your browser:
+By default everything is stored locally in your browser:
 
 - **Inventory and color notes** — `localStorage`
 - **Patterns, grids, and stitch progress** — `IndexedDB`
 
-There is no account. There is no server. Nothing leaves your device unless you
-explicitly use Export or Share.
+If the host has Firebase configured (see the README), you can also **sign in**
+to sync the same data across devices. Sync is opt-in; no account is required
+to use Thready.
+
+## Sync across devices
+
+The avatar button in the top-right opens the account menu:
+
+- **Sign in with Google** — your inventory, color notes, patterns, grid
+  calibrations, stitch progress, and PDF files sync across every device
+  signed in with the same Google account.
+- **Continue without account** — gives you an anonymous account that syncs
+  data to the cloud but is tied to this one browser. Useful if you want
+  cloud backup without a Google sign-in. You can upgrade to Google later from
+  the same menu.
+- A small dot on the avatar shows online (green) / offline (yellow). Offline
+  changes queue and flush automatically when you reconnect.
+
+Local-only behavior still works the same when you're signed out — sync is
+purely additive.
+
+### What syncs and how
+
+| Data                        | Local store    | Cloud store                              |
+|-----------------------------|----------------|------------------------------------------|
+| Inventory (per brand)       | `localStorage` | `users/{uid}/data/inventory`             |
+| Color notes (per brand)     | `localStorage` | `users/{uid}/data/notes`                 |
+| Patterns list (metadata)    | `IndexedDB`    | `users/{uid}/meta/patternsIndex`         |
+| Grids / progress / colors   | `IndexedDB`    | `users/{uid}/patterns/{patternId}` (Firestore) |
+| PDF files                   | `IndexedDB`    | `users/{uid}/patterns/{patternId}.pdf` (Firebase Storage) |
+
+Updates flow both ways in real time — mark a stitch on your phone and you'll
+see it on your laptop without refreshing. Conflicts (e.g. you marked the same
+square on two devices while offline) resolve last-write-wins.
 
 This also means:
 
-- Your data is per-browser and per-device. Using Thready on your laptop
-  won't show the same inventory as Thready on your phone.
-- Clearing your browser's site data will wipe everything. Use **Export as
-  JSON** periodically if you want a backup.
+- Without sign-in, your data is per-browser and per-device.
+- Clearing your browser's site data wipes the local cache. If you're signed
+  in, the cloud copy is intact and will restore on next load.
+- Export → JSON still works as a portable backup independent of Firebase.
 
 ---
 

@@ -49,6 +49,14 @@ A web app for managing your cross-stitch projects — track your DMC floss inven
 - Mark colors done as you stitch; summary bar tracks colors and stitches completed
 - Share shopping list or progress via the Web Share API (with clipboard fallback)
 
+### Cloud Sync (optional)
+- Sign in with Google or anonymously to sync inventory, color notes, patterns, and PDFs across devices
+- Inventory + notes sync via Firestore documents under `users/{uid}/data/...`
+- Pattern metadata + grid configs + progress in Firestore; PDF binaries in Firebase Storage
+- Realtime updates (mark a stitch on your phone → see it on your laptop)
+- Online/offline indicator on the account button — offline changes queue and flush when you reconnect
+- Without Firebase env vars set, the app continues to work in fully local mode (no sign-in)
+
 ## Getting Started
 
 ### Prerequisites
@@ -74,6 +82,20 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ```bash
 npm run build
 ```
+
+### Optional: Firebase setup (cloud sync)
+
+Cloud sync is optional — without these env vars, the app runs in fully local mode.
+
+1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
+2. Enable **Authentication** providers: Google and Anonymous.
+3. Enable **Cloud Firestore** (start in production mode).
+4. Enable **Firebase Storage**.
+5. Deploy the security rules from this repo:
+   ```bash
+   firebase deploy --only firestore:rules,storage
+   ```
+6. Copy `.env.example` to `.env` and fill in the Firebase web config values from the project settings page.
 
 ## Project Structure
 

@@ -95,10 +95,16 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       }
       setProgress(migratedProgress)
       setPatternColors(data.patternColors ?? [])
-      setMetaName(data.name)
+      // Cloud-only patterns (signed in on a new device, file not yet synced)
+      // come back with name === '' — keep the prop-supplied name in that case.
+      if (data.name) setMetaName(data.name)
       setDesigner(data.designer ?? '')
       setFabric(data.fabric ?? '')
       setNotes(data.notes ?? '')
+      if (!data.file) {
+        if (!cancelled) setError("This pattern's file isn't on this device yet. Re-upload the PDF or wait for sync to complete.")
+        return
+      }
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
         if (!cancelled) {
