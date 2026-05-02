@@ -48,11 +48,15 @@ const COMPARE_SIZE = 16  // px — symbol images scaled to this before compariso
 export default function PdfViewerScreen({ patternId, patternName, onBack }: Props) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [numPages, setNumPages] = useState(0)
-  const [pageNum, setPageNum] = useState(1)
+  const [pageNum, setPageNum] = useState(() => {
+    const saved = localStorage.getItem(`thready-lastpage-${patternId}`)
+    return saved ? Math.max(1, parseInt(saved, 10)) : 1
+  })
   const [rendering, setRendering] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null)
-  const [gridConfig, setGridConfig] = useState<GridConfig | undefined>(undefined)
+  const [gridConfigs, setGridConfigs] = useState<Record<number, GridConfig>>({})
+  const gridConfig = gridConfigs[pageNum]
   const [progress, setProgress] = useState<Record<string, string>>({})
   const [patternColors, setPatternColors] = useState<PatternColor[]>([])
   const [calibState, setCalibState] = useState<CalibState>({ phase: 'off' })
@@ -79,7 +83,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     let cancelled = false
     loadPatternData(patternId).then(async (data) => {
       if (!data || cancelled) return
-      setGridConfig(data.gridConfig)
+      setGridConfigs(data.gridConfigs)
       // Migrate old-format keys ("col,row") to new format ("pageNum:col,row").
       // Old values were `true`; treat them as page 1 stitches with no color.
       const rawProgress = data.progress ?? {}
@@ -96,13 +100,23 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       setNotes(data.notes ?? '')
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
-        if (!cancelled) { setPdf(doc); setNumPages(doc.numPages) }
+        if (!cancelled) {
+          setPdf(doc)
+          setNumPages(doc.numPages)
+          // Clamp restored page to valid range now that we know numPages
+          setPageNum(p => Math.min(p, doc.numPages))
+        }
       } catch {
         if (!cancelled) setError('Could not read this PDF.')
       }
     })
     return () => { cancelled = true }
   }, [patternId])
+
+  // Persist last-viewed page so reopening the pattern restores position
+  useEffect(() => {
+    localStorage.setItem(`thready-lastpage-${patternId}`, String(pageNum))
+  }, [pageNum, patternId])
 
   // Re-render canvas on page change
   useEffect(() => {
@@ -291,7 +305,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
             const subP = P / div
             if (subP < minP) break
             const { score: subScore, phase: subPhase } = evalPeriod(subP)
-            if (subScore > THRESHOLD * 0.5 && subPhase >= 0) {
+            if (subScore > 0.15 && subPhase >= 0) {
               return { period: subP, phase: subPhase }
             }
           }
@@ -330,7 +344,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     setDetectedLines({ h, v })
   }, [])
 
-  // Auto-calibrate: when detection succeeds and no grid is set, apply it automatically.
+  // Auto-calibrate: when detection succeeds and no grid is set for this page, apply it.
   useEffect(() => {
     if (!detectedLines || gridConfig) return
     const { h, v } = detectedLines
@@ -341,9 +355,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       cellW: v[1] - v[0],
       cellH: h[1] - h[0],
     }
-    setGridConfig(config)
-    saveGridConfig(patternId, config)
-  }, [detectedLines, gridConfig])  // eslint-disable-line react-hooks/exhaustive-deps
+    setGridConfigs(prev => ({ ...prev, [pageNum]: config }))
+    saveGridConfig(patternId, pageNum, config)
+  }, [detectedLines, gridConfig, pageNum])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Return the nearest snappable intersection: detected PDF grid first, overlay grid fallback.
   const getSnapPos = (x: number, y: number): { x: number; y: number } | null => {
@@ -392,11 +406,16 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           originY: Math.min(calibState.c1.y, y),
           cellW, cellH,
         }
-        setGridConfig(config)
+        setGridConfigs(prev => ({ ...prev, [pageNum]: config }))
         setCalibState({ phase: 'off' })
-        // Clear stale progress atomically with the new grid — avoids concurrent write race
-        setProgress({})
-        clearGridAndProgress(patternId).then(() => saveGridConfig(patternId, config))
+        // Clear this page's stale progress atomically with the new grid
+        setProgress(prev => {
+          const next = { ...prev }
+          const prefix = `${pageNum}:`
+          for (const k of Object.keys(next)) { if (k.startsWith(prefix)) delete next[k] }
+          return next
+        })
+        clearGridAndProgress(patternId, pageNum).then(() => saveGridConfig(patternId, pageNum, config))
       }
     } else if (gridConfig) {
       // Toggle the stitch square under the click
@@ -417,10 +436,15 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   }
 
   const handleClearGrid = () => {
-    setGridConfig(undefined)
+    setGridConfigs(prev => { const n = { ...prev }; delete n[pageNum]; return n })
     setDetectedLines(null)
-    setProgress({})
-    clearGridAndProgress(patternId)
+    setProgress(prev => {
+      const next = { ...prev }
+      const prefix = `${pageNum}:`
+      for (const k of Object.keys(next)) { if (k.startsWith(prefix)) delete next[k] }
+      return next
+    })
+    clearGridAndProgress(patternId, pageNum)
     // Re-run detection so auto-calibration fires with a fresh result.
     setTimeout(detectGridLines, 0)
   }
