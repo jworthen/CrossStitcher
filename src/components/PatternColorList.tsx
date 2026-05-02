@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { DMC_COLORS } from '../data/dmcColors'
+import { useMemo, useState } from 'react'
+import { DMC_COLORS, FlossStatus } from '../data/dmcColors'
+import { useInventory } from '../hooks/useInventory'
 import type { PatternColor } from '../hooks/usePatterns'
 import styles from './PatternColorList.module.css'
 
@@ -12,6 +13,18 @@ function isLight(hex: string): boolean {
   return (Math.max(r, g, b) + Math.min(r, g, b)) / 2 > 0.85
 }
 
+const NEXT_STATUS: Record<FlossStatus, FlossStatus> = {
+  unowned: 'in_stock',
+  in_stock: 'low',
+  low: 'unowned',
+}
+
+const STATUS_BADGE: Record<FlossStatus, { label: string; className: string; aria: string }> = {
+  unowned: { label: '—', className: styles.invBadgeUnowned, aria: 'missing' },
+  in_stock: { label: '✓', className: styles.invBadgeInStock, aria: 'in stock' },
+  low: { label: '!', className: styles.invBadgeLow, aria: 'low' },
+}
+
 interface Props {
   colors: PatternColor[]
   onChange: (colors: PatternColor[]) => void
@@ -20,6 +33,7 @@ interface Props {
 export default function PatternColorList({ colors, onChange }: Props) {
   const [dmcInput, setDmcInput] = useState('')
   const [countInput, setCountInput] = useState('')
+  const { getStatus, cycleStatus, bulkSetStatus } = useInventory()
 
   const handleAdd = () => {
     const num = dmcInput.trim()
@@ -48,10 +62,36 @@ export default function PatternColorList({ colors, onChange }: Props) {
   const remove = (dmcNumber: string) =>
     onChange(colors.filter((c) => c.dmcNumber !== dmcNumber))
 
+  // Resolve each pattern color to its canonical inventory key (DMC number from the
+  // master list) so manual-add casing differences don't fragment lookups.
+  const canonicalNumberFor = (color: PatternColor): string =>
+    DMC_BY_NUMBER.get(color.dmcNumber.toLowerCase())?.number ?? color.dmcNumber
+
+  const inventorySummary = useMemo(() => {
+    let missing = 0, low = 0, owned = 0
+    const needBuy: string[] = []  // canonical numbers for missing+low
+    for (const color of colors) {
+      const key = canonicalNumberFor(color)
+      const status = getStatus(key)
+      if (status === 'unowned') { missing++; needBuy.push(key) }
+      else if (status === 'low') { low++; needBuy.push(key) }
+      else owned++
+    }
+    return { missing, low, owned, total: colors.length, needBuy }
+  }, [colors, getStatus])
+
+  const handleMarkAllBought = () => {
+    if (inventorySummary.needBuy.length === 0) return
+    bulkSetStatus(inventorySummary.needBuy.map((number) => ({ number, status: 'in_stock' as FlossStatus })))
+  }
+
   const totalStitches = colors.reduce((s, c) => s + (c.stitchCount ?? 0), 0)
   const doneStitches = colors.filter((c) => c.done).reduce((s, c) => s + (c.stitchCount ?? 0), 0)
   const doneCount = colors.filter((c) => c.done).length
   const hasSymbols = colors.some((c) => c.symbol || c.symbolImage)
+
+  const ready = colors.length > 0 && inventorySummary.missing === 0 && inventorySummary.low === 0
+  const showReadiness = colors.length > 0
 
   return (
     <div className={styles.container}>
@@ -82,6 +122,39 @@ export default function PatternColorList({ colors, onChange }: Props) {
         </button>
       </div>
 
+      {/* Readiness banner — Phase 6 */}
+      {showReadiness && (
+        <div className={`${styles.readiness} ${ready ? styles.readinessReady : styles.readinessNotReady}`}>
+          <div className={styles.readinessText}>
+            {ready ? (
+              <>
+                <span className={styles.readinessIcon} aria-hidden="true">✓</span>
+                <span>Ready to start — all {colors.length} color{colors.length === 1 ? '' : 's'} in stock</span>
+              </>
+            ) : (
+              <>
+                <span className={styles.readinessIcon} aria-hidden="true">⚠</span>
+                <span>
+                  {inventorySummary.missing > 0 && (
+                    <strong>{inventorySummary.missing} missing</strong>
+                  )}
+                  {inventorySummary.missing > 0 && inventorySummary.low > 0 && ', '}
+                  {inventorySummary.low > 0 && (
+                    <strong>{inventorySummary.low} low</strong>
+                  )}
+                  {' '}of {colors.length}
+                </span>
+              </>
+            )}
+          </div>
+          {!ready && inventorySummary.needBuy.length > 0 && (
+            <button className={styles.markBoughtBtn} onClick={handleMarkAllBought}>
+              Mark all as bought
+            </button>
+          )}
+        </div>
+      )}
+
       {colors.length === 0 ? (
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>No colors yet</p>
@@ -94,8 +167,15 @@ export default function PatternColorList({ colors, onChange }: Props) {
               const dmc = DMC_BY_NUMBER.get(color.dmcNumber.toLowerCase())
               const hex = dmc?.hex ?? '#BBBBBB'
               const name = dmc?.name ?? 'Unknown color'
+              const invKey = canonicalNumberFor(color)
+              const invStatus = getStatus(invKey)
+              const badge = STATUS_BADGE[invStatus]
+              const rowStatusClass =
+                invStatus === 'in_stock' ? styles.rowInStock :
+                invStatus === 'low' ? styles.rowLow :
+                styles.rowMissing
               return (
-                <li key={color.dmcNumber} className={`${styles.row} ${color.done ? styles.rowDone : ''}`}>
+                <li key={color.dmcNumber} className={`${styles.row} ${rowStatusClass} ${color.done ? styles.rowDone : ''}`}>
                   {hasSymbols && (
                     <div className={styles.symbolCell}>
                       {color.symbolImage
@@ -124,6 +204,14 @@ export default function PatternColorList({ colors, onChange }: Props) {
                   ) : (
                     <span className={styles.stitchCountEmpty}>—</span>
                   )}
+                  <button
+                    className={`${styles.invBadge} ${badge.className}`}
+                    onClick={() => cycleStatus(invKey)}
+                    aria-label={`inventory: ${badge.aria} (tap to change)`}
+                    title={`Inventory: ${badge.aria}`}
+                  >
+                    {badge.label}
+                  </button>
                   <button
                     className={`${styles.doneBtn} ${color.done ? styles.doneBtnActive : ''}`}
                     onClick={() => toggleDone(color.dmcNumber)}
