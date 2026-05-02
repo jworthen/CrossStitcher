@@ -262,12 +262,13 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         return hi < N ? profile[lo] + (pos - lo) * (profile[hi] - profile[lo]) : profile[lo]
       }
 
-      const THRESHOLD = 0.9
+      // Lowered from 0.9 — dense/colorful charts have thin grid lines whose
+      // contrast doesn't reach 0.9 but is still clearly periodic at 0.65.
+      const THRESHOLD = 0.65
       const clampedMax = Math.min(maxP, N / 3)
 
-      for (let s = 0; minP + s * 0.25 <= clampedMax; s++) {
-        const P = minP + s * 0.25
-        let bestScore = 0, bestPhase = -1
+      const evalPeriod = (P: number) => {
+        let bestScore = -Infinity, bestPhase = -1
         for (let ps = 0; ps * 0.5 < P; ps++) {
           const phase = ps * 0.5
           let sum = 0, count = 0
@@ -276,7 +277,24 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           const score = (mean - sum / count) / std
           if (score > bestScore) { bestScore = score; bestPhase = phase }
         }
+        return { score: bestScore, phase: bestPhase }
+      }
+
+      for (let s = 0; minP + s * 0.25 <= clampedMax; s++) {
+        const P = minP + s * 0.25
+        const { score: bestScore, phase: bestPhase } = evalPeriod(P)
         if (bestScore > THRESHOLD && bestPhase >= 0) {
+          // Harmonic guard: if a sub-period also scores well, the detected period
+          // is likely a bold-line harmonic (e.g. every-10-stitches bold line).
+          // Walk divisors 2–10 and return the smallest that clears half-threshold.
+          for (let div = 2; div <= 10; div++) {
+            const subP = P / div
+            if (subP < minP) break
+            const { score: subScore, phase: subPhase } = evalPeriod(subP)
+            if (subScore > THRESHOLD * 0.5 && subPhase >= 0) {
+              return { period: subP, phase: subPhase }
+            }
+          }
           return { period: P, phase: bestPhase }
         }
       }
@@ -477,12 +495,21 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
         const dmcLabelIdx = rowItems.findIndex((it) => it.str.trim() === 'DMC')
         if (dmcLabelIdx >= 0 && dmcLabelIdx + 1 < rowItems.length) {
           const next = rowItems[dmcLabelIdx + 1]
-          const t = next.str.trim().toLowerCase()
+          // Strip "/COSMO NNN" suffix (e.g. "310/COSMO 600" → "310")
+          const t = next.str.trim().toLowerCase().split('/')[0].trim()
           if (dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = dmcLabelIdx + 1 }
         }
 
-        // No fallback — only trust rows with an explicit "DMC" label to avoid false positives
-        // from stitch counts, dimensions, or other numbers elsewhere in the PDF.
+        // Secondary: handle "DMC NNN/COSMO NNN - Name" as a single text item (common in
+        // dual-brand color keys where DMC and COSMO numbers appear on the same line).
+        if (!dmcNum) {
+          for (let idx = 0; idx < rowItems.length; idx++) {
+            const m = rowItems[idx].str.match(/\bDMC\s+([A-Za-z0-9]+)/i)
+            if (!m) continue
+            const t = m[1].toLowerCase()
+            if (dmcMap.has(t)) { dmcNum = dmcMap.get(t)!; dmcItemIdx = idx; break }
+          }
+        }
         if (!dmcNum || results.has(dmcNum)) continue
 
         // Symbol: leftmost item. Digits are intentionally allowed — proprietary symbol fonts

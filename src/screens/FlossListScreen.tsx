@@ -2,11 +2,17 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { DMC_COLORS, DmcColor, FlossStatus } from '../data/dmcColors'
 import { useInventory } from '../hooks/useInventory'
 import { useDarkMode } from '../hooks/useDarkMode'
-import FlossItem from '../components/FlossItem'
+import FlossItem, { Density } from '../components/FlossItem'
 import styles from './FlossListScreen.module.css'
 
 type FilterTab = 'all' | 'in_stock' | 'low' | 'unowned'
 type SortMode = 'number' | 'color'
+
+const DENSITY_OPTIONS: { key: Density; label: string }[] = [
+  { key: 'compact', label: 'S' },
+  { key: 'comfortable', label: 'M' },
+  { key: 'spacious', label: 'L' },
+]
 type ListRow = { type: 'header'; label: string } | { type: 'color'; color: DmcColor }
 
 const TABS: { key: FilterTab; label: string }[] = [
@@ -91,9 +97,17 @@ export default function FlossListScreen() {
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
   const [sortMode, setSortMode] = useState<SortMode>('number')
+  const [density, setDensity] = useState<Density>(() =>
+    (localStorage.getItem('thready-density') as Density) || 'comfortable'
+  )
   const [showActions, setShowActions] = useState(false)
   const [resetPending, setResetPending] = useState(false)
   const actionsRef = useRef<HTMLDivElement>(null)
+
+  const handleDensity = (d: Density) => {
+    setDensity(d)
+    localStorage.setItem('thready-density', d)
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -276,6 +290,19 @@ export default function FlossListScreen() {
             </button>
           </div>
 
+          <div className={styles.densityToggle}>
+            {DENSITY_OPTIONS.map(({ key, label }) => (
+              <button
+                key={key}
+                className={`${styles.densityBtn} ${density === key ? styles.densityBtnActive : ''}`}
+                onClick={() => handleDensity(key)}
+                aria-label={key}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className={styles.actionsWrapper} ref={actionsRef}>
             <button
               className={styles.actionsBtn}
@@ -323,7 +350,35 @@ export default function FlossListScreen() {
       {/* List */}
       <main className={styles.main}>
         {filtered.length === 0 ? (
-          <p className={styles.empty}>No colors found.</p>
+          <div className={styles.emptyState}>
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true" className={styles.emptyIllustration}>
+              <circle cx="40" cy="45" r="28" stroke="currentColor" strokeWidth="3.5" opacity="0.18"/>
+              <circle cx="40" cy="45" r="22" stroke="currentColor" strokeWidth="1" strokeDasharray="3 4" opacity="0.13"/>
+              <rect x="34" y="12" width="12" height="7" rx="3" fill="currentColor" opacity="0.18"/>
+              <line x1="40" y1="15" x2="40" y2="19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.28"/>
+              <line x1="20" y1="37" x2="60" y2="37" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
+              <line x1="20" y1="45" x2="60" y2="45" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
+              <line x1="20" y1="53" x2="60" y2="53" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
+              <line x1="28" y1="29" x2="28" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
+              <line x1="36" y1="29" x2="36" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
+              <line x1="44" y1="29" x2="44" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
+              <line x1="52" y1="29" x2="52" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
+              <path d="M32 37 L36 41 M36 37 L32 41" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.22"/>
+              <path d="M44 45 L48 49 M48 45 L44 49" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.22"/>
+              <path d="M32 53 L36 57 M36 53 L32 57" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.22"/>
+            </svg>
+            <p className={styles.emptyTitle}>
+              {search ? `No results for "${search}"` : 'Nothing here'}
+            </p>
+            <p className={styles.emptySubtitle}>
+              {search ? 'Try a different number or name' : 'No colors match this filter'}
+            </p>
+            {search && (
+              <button className={styles.emptyClearBtn} onClick={() => setSearch('')}>
+                Clear search
+              </button>
+            )}
+          </div>
         ) : (
           <ul className={styles.list}>
             {listRows.map((row, i) =>
@@ -337,6 +392,7 @@ export default function FlossListScreen() {
                   color={row.color}
                   status={getStatus(row.color.number)}
                   onPress={() => cycleStatus(row.color.number)}
+                  density={density}
                 />
               )
             )}

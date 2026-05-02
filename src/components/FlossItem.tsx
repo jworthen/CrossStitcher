@@ -1,10 +1,13 @@
 import { DmcColor, FlossStatus } from '../data/dmcColors'
 import styles from './FlossItem.module.css'
 
+export type Density = 'compact' | 'comfortable' | 'spacious'
+
 interface Props {
   color: DmcColor
   status: FlossStatus
   onPress: () => void
+  density?: Density
 }
 
 const STATUS_CONFIG: Record<FlossStatus, { label: string; className: string; rowClassName: string; ariaLabel: string }> = {
@@ -20,14 +23,17 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 220
 }
 
-export default function FlossItem({ color, status, onPress }: Props) {
+export default function FlossItem({ color, status, onPress, density = 'comfortable' }: Props) {
   const config = STATUS_CONFIG[status]
   const light = isLightColor(color.hex)
+  const rowDensity = density === 'compact' ? styles.densityCompact : density === 'spacious' ? styles.densitySpacious : ''
+  const swatchDensity = density === 'compact' ? styles.swatchCompact : density === 'spacious' ? styles.swatchSpacious : ''
+  const badgeDensity = density === 'compact' ? styles.badgeCompact : density === 'spacious' ? styles.badgeSpacious : ''
 
   return (
-    <li className={`${styles.row} ${config.rowClassName}`} onClick={onPress}>
+    <li className={`${styles.row} ${config.rowClassName} ${rowDensity}`} onClick={onPress}>
       <div
-        className={`${styles.swatch} ${light ? styles.swatchLight : ''}`}
+        className={`${styles.swatch} ${light ? styles.swatchLight : ''} ${swatchDensity}`}
         style={{ backgroundColor: color.hex }}
         aria-hidden="true"
       />
@@ -36,7 +42,7 @@ export default function FlossItem({ color, status, onPress }: Props) {
         <span className={styles.name}>{color.name}</span>
       </div>
       <div
-        className={`${styles.badge} ${config.className}`}
+        className={`${styles.badge} ${config.className} ${badgeDensity}`}
         role="img"
         aria-label={config.ariaLabel}
       >
