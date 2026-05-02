@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const DB_NAME = 'crossstitcher'
+const DB_NAME = 'thready'
 const DB_VERSION = 1
 const STORE = 'patterns'
 
@@ -33,7 +33,7 @@ export interface PatternMeta {
 interface StoredPattern extends PatternMeta {
   file: ArrayBuffer
   gridConfig?: GridConfig
-  progress?: Record<string, true>
+  progress?: Record<string, string>
   patternColors?: PatternColor[]
 }
 
@@ -93,7 +93,7 @@ function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: Stor
 export async function loadPatternData(id: string): Promise<{
   file: ArrayBuffer
   gridConfig?: GridConfig
-  progress?: Record<string, true>
+  progress?: Record<string, string>
   patternColors?: PatternColor[]
   name: string
   designer?: string
@@ -139,7 +139,7 @@ export async function savePatternColors(id: string, patternColors: PatternColor[
   await idbPut(db, updated)
 }
 
-export async function saveProgress(id: string, progress: Record<string, true>): Promise<void> {
+export async function saveProgress(id: string, progress: Record<string, string>): Promise<void> {
   const db = await openDB()
   const record = await idbGet(db, id)
   if (!record) return

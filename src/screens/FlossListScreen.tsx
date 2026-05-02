@@ -184,7 +184,7 @@ export default function FlossListScreen() {
     const rows = UNIQUE_COLORS.map(
       (c) => `${c.number},"${c.name}",${c.hex},${getStatus(c.number)}`
     )
-    downloadFile([header, ...rows].join('\n'), 'crossstitcher-inventory.csv', 'text/csv')
+    downloadFile([header, ...rows].join('\n'), 'thready-inventory.csv', 'text/csv')
     setShowActions(false)
   }
 
@@ -197,7 +197,7 @@ export default function FlossListScreen() {
     }))
     downloadFile(
       JSON.stringify(data, null, 2),
-      'crossstitcher-inventory.json',
+      'thready-inventory.json',
       'application/json'
     )
     setShowActions(false)
