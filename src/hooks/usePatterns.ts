@@ -28,8 +28,6 @@ export interface PatternMeta {
   designer?: string
   fabric?: string
   notes?: string
-  /** Per-pattern preferred brand override; falls back to global if unset. */
-  preferredBrand?: string
 }
 
 interface StoredPattern extends PatternMeta {
@@ -85,12 +83,11 @@ function idbDelete(db: IDBDatabase, id: string): Promise<void> {
   })
 }
 
-function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes, preferredBrand }: StoredPattern): PatternMeta {
+function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: StoredPattern): PatternMeta {
   const meta: PatternMeta = { id, name, dateAdded, fileSize }
   if (designer) meta.designer = designer
   if (fabric) meta.fabric = fabric
   if (notes) meta.notes = notes
-  if (preferredBrand) meta.preferredBrand = preferredBrand
   return meta
 }
 
@@ -103,7 +100,6 @@ export async function loadPatternData(id: string): Promise<{
   designer?: string
   fabric?: string
   notes?: string
-  preferredBrand?: string
 } | null> {
   const db = await openDB()
   const record = await idbGet(db, id)
@@ -120,13 +116,12 @@ export async function loadPatternData(id: string): Promise<{
     designer: record.designer,
     fabric: record.fabric,
     notes: record.notes,
-    preferredBrand: record.preferredBrand,
   }
 }
 
 export async function savePatternMeta(
   id: string,
-  patch: Partial<Pick<PatternMeta, 'name' | 'designer' | 'fabric' | 'notes' | 'preferredBrand'>>
+  patch: Partial<Pick<PatternMeta, 'name' | 'designer' | 'fabric' | 'notes'>>
 ): Promise<void> {
   const db = await openDB()
   const record = await idbGet(db, id)
@@ -135,7 +130,6 @@ export async function savePatternMeta(
   if (!updated.designer) delete updated.designer
   if (!updated.fabric) delete updated.fabric
   if (!updated.notes) delete updated.notes
-  if (!updated.preferredBrand) delete updated.preferredBrand
   await idbPut(db, updated)
 }
 
@@ -232,7 +226,7 @@ export function usePatterns() {
 
   const updatePattern = useCallback(async (
     id: string,
-    patch: Partial<Pick<PatternMeta, 'name' | 'designer' | 'fabric' | 'notes' | 'preferredBrand'>>
+    patch: Partial<Pick<PatternMeta, 'name' | 'designer' | 'fabric' | 'notes'>>
   ) => {
     await savePatternMeta(id, patch)
     setPatterns((prev) => prev.map((p) => p.id === id ? { ...p, ...patch } : p))

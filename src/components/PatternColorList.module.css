@@ -285,12 +285,6 @@
   line-height: 1.2;
 }
 
-.dmcAlt {
-  font-weight: 500;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
 .name {
   font-size: 0.75rem;
   color: var(--color-text-muted);

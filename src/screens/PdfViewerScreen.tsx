@@ -6,8 +6,7 @@ import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { loadPatternData, saveGridConfig, saveProgress, savePatternColors, savePatternMeta, clearGridAndProgress } from '../hooks/usePatterns'
 import type { GridConfig, PatternColor } from '../hooks/usePatterns'
 import { DMC_COLORS } from '../data/dmcColors'
-import { BrandId, BRANDS, dmcFromBrandCode } from '../data/brands'
-import { usePreferredBrand } from '../hooks/usePreferredBrand'
+import { BrandId, dmcFromBrandCode } from '../data/brands'
 import PatternColorList from '../components/PatternColorList'
 import styles from './PdfViewerScreen.module.css'
 
@@ -73,10 +72,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [designer, setDesigner] = useState('')
   const [fabric, setFabric] = useState('')
   const [notes, setNotes] = useState('')
-  // Brand preference: '' means "follow global"; any BrandId overrides for this pattern.
-  const [patternBrand, setPatternBrand] = useState<BrandId | ''>('')
-  const [globalBrand] = usePreferredBrand()
-  const effectiveBrand: BrandId = patternBrand || globalBrand
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
   // Pre-rendered symbol ImageData for stitch color matching (keyed by DMC number)
@@ -104,7 +99,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       setDesigner(data.designer ?? '')
       setFabric(data.fabric ?? '')
       setNotes(data.notes ?? '')
-      setPatternBrand((data.preferredBrand as BrandId | undefined) ?? '')
       try {
         const doc = await pdfjsLib.getDocument({ data: data.file }).promise
         if (!cancelled) {
@@ -669,7 +663,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     setScanning(false)
   }
 
-  const saveMetaField = (patch: Partial<{ name: string; designer: string; fabric: string; notes: string; preferredBrand: string | undefined }>) => {
+  const saveMetaField = (patch: Partial<{ name: string; designer: string; fabric: string; notes: string }>) => {
     savePatternMeta(patternId, patch)
   }
 
@@ -777,7 +771,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           <PatternColorList
             colors={patternColors}
             patternName={metaName}
-            brand={effectiveBrand}
             onChange={(colors) => {
               setPatternColors(colors)
               savePatternColors(patternId, colors)
@@ -832,25 +825,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
               onChange={(e) => setNotes(e.target.value)}
               onBlur={(e) => saveMetaField({ notes: e.target.value.trim() })}
             />
-          </div>
-          <div className={styles.infoField}>
-            <label className={styles.infoLabel}>
-              Thread brand for this pattern
-            </label>
-            <select
-              className={styles.infoInput}
-              value={patternBrand}
-              onChange={(e) => {
-                const v = e.target.value as BrandId | ''
-                setPatternBrand(v)
-                saveMetaField({ preferredBrand: v || undefined })
-              }}
-            >
-              <option value="">Use global default ({globalBrand.toUpperCase()})</option>
-              {BRANDS.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
           </div>
         </div>
       )}
