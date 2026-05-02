@@ -102,7 +102,7 @@ Let users document their patterns properly. Currently patterns are named from th
 - [x] Cross-brand conversion charts (e.g. DMC 321 ↔ Anchor 9046)
 - [x] User can set a preferred brand per pattern or globally
 - [x] Patterns that list multiple brand codes show all equivalents
-- [ ] In-app way to contact the developer to request missing brands or colors (the conversion chart is curated and partial; users should have an easy path to flag gaps)
+- [x] In-app way to contact the developer to request missing brands or colors
 
 ## Phase 9 — Community (Nice to Have)
 Requires a backend and user accounts.
