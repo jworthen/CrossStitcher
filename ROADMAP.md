@@ -1,4 +1,4 @@
-# CrossStitcher Roadmap
+# Thready Roadmap
 
 ## Phase 1 — Core Inventory (MVP) ✅
 - Full list of all DMC floss colors with numbers, names, and hex swatches
@@ -29,7 +29,7 @@
 - [x] Header gradient or decorative pattern
 
 ## Phase 4 — Marketing & Landing Page
-A public-facing website to establish CrossStitcher's identity and attract users. Key differentiator to lead with: free, no account, works in any browser right now — versus competitors still in waitlist/beta.
+A public-facing website to establish Thready's identity and attract users. Key differentiator to lead with: free, no account, works in any browser right now — versus competitors still in waitlist/beta.
 
 - [ ] Hero section: tagline, app screenshot, CTA ("Open the App")
 - [ ] Feature highlights: inventory tracking, sort/filter, dark mode, CSV export
