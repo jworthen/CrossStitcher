@@ -185,6 +185,34 @@ html[data-theme="dark"] .header {
   gap: 2px;
 }
 
+.densityToggle {
+  display: flex;
+  background: var(--color-bg);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.densityBtn {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
+.densityBtnActive {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
 .sortBtn {
   padding: 4px 10px;
   border: none;
@@ -324,11 +352,48 @@ html[data-theme="dark"] .dropdownDanger:hover {
   list-style: none;
 }
 
-.empty {
-  padding: 64px 24px;
-  text-align: center;
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 52px 24px 64px;
+  gap: 6px;
+}
+
+.emptyIllustration {
   color: var(--color-text-muted);
-  font-size: 0.9375rem;
+  margin-bottom: 6px;
+}
+
+.emptyTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.emptySubtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.emptyClearBtn {
+  margin-top: 10px;
+  padding: 7px 20px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.emptyClearBtn:hover {
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
 }
 
 /* ── Footer hint ─────────────────────────────────────── */

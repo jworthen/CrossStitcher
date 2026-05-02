@@ -18,14 +18,14 @@
 - [x] Dark mode support
 - [x] Export inventory as CSV or JSON
 
-## Phase 3 — Aesthetics & Visual Polish 🚧
-- [ ] Custom logo / wordmark in header
+## Phase 3 — Aesthetics & Visual Polish ✅
+- [x] Custom logo / wordmark in header
 - [x] Improved typography (custom font pairing)
 - [x] Animated status transitions (smooth color change on tap)
 - [x] Color-coded row tinting based on status (subtle background wash)
 - [x] Richer swatch styling (subtle depth, silk/thread texture)
-- [ ] Skeleton loading / empty state illustrations
-- [ ] Compact / Comfortable / Spacious density toggle
+- [x] Skeleton loading / empty state illustrations
+- [x] Compact / Comfortable / Spacious density toggle
 - [x] Header gradient or decorative pattern
 
 ## Phase 4 — Marketing & Landing Page

@@ -145,3 +145,39 @@
     font-size: 1.0625rem;
   }
 }
+
+/* ── Density variants (after media query so they always win) ── */
+
+.densityCompact {
+  padding: 4px 16px;
+  gap: 8px;
+}
+
+.swatchCompact {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.badgeCompact {
+  width: 24px;
+  height: 24px;
+  font-size: 0.75rem;
+}
+
+.densitySpacious {
+  padding: 14px 16px;
+  gap: 16px;
+}
+
+.swatchSpacious {
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+}
+
+.badgeSpacious {
+  width: 40px;
+  height: 40px;
+  font-size: 1.125rem;
+}
