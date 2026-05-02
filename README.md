@@ -1,4 +1,4 @@
-# CrossStitcher
+# Thready
 
 A web app for managing your cross-stitch projects — track your DMC floss inventory, view PDF patterns, mark off stitches, and manage your color lists.
 

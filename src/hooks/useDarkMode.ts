@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const STORAGE_KEY = '@crossstitcher_dark'
+const STORAGE_KEY = '@thready_dark'
 
 export function useDarkMode(): [boolean, () => void] {
   const [isDark, setIsDark] = useState<boolean>(() => {
