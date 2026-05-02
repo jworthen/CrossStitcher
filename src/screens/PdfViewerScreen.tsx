@@ -35,6 +35,16 @@ function gridPositions(origin: number, step: number, max: number): number[] {
   return positions
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
+
+const DMC_BY_NUMBER = new Map(DMC_COLORS.map((c) => [c.number, c]))
+const COMPARE_SIZE = 16  // px — symbol images scaled to this before comparison
+
 export default function PdfViewerScreen({ patternId, patternName, onBack }: Props) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [numPages, setNumPages] = useState(0)
@@ -43,7 +53,7 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [error, setError] = useState<string | null>(null)
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null)
   const [gridConfig, setGridConfig] = useState<GridConfig | undefined>(undefined)
-  const [progress, setProgress] = useState<Record<string, true>>({})
+  const [progress, setProgress] = useState<Record<string, string>>({})
   const [patternColors, setPatternColors] = useState<PatternColor[]>([])
   const [calibState, setCalibState] = useState<CalibState>({ phase: 'off' })
   const [viewTab, setViewTab] = useState<'pattern' | 'colors' | 'info'>('pattern')
@@ -57,6 +67,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const [notes, setNotes] = useState('')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
+  // Pre-rendered symbol ImageData for stitch color matching (keyed by DMC number)
+  const symbolDataRef = useRef<Map<string, ImageData>>(new Map())
 
   const isCalibrating = calibState.phase !== 'off'
 
@@ -66,7 +78,15 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     loadPatternData(patternId).then(async (data) => {
       if (!data || cancelled) return
       setGridConfig(data.gridConfig)
-      setProgress(data.progress ?? {})
+      // Migrate old-format keys ("col,row") to new format ("pageNum:col,row").
+      // Old values were `true`; treat them as page 1 stitches with no color.
+      const rawProgress = data.progress ?? {}
+      const migratedProgress: Record<string, string> = {}
+      for (const [k, v] of Object.entries(rawProgress)) {
+        if (k.includes(':')) migratedProgress[k] = v as string
+        else migratedProgress[`1:${k}`] = ''
+      }
+      setProgress(migratedProgress)
       setPatternColors(data.patternColors ?? [])
       setMetaName(data.name)
       setDesigner(data.designer ?? '')
@@ -112,6 +132,56 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     return () => { cancelled = true }
   }, [pdf, pageNum])
 
+  // Pre-render each color's symbol image to COMPARE_SIZE×COMPARE_SIZE ImageData so
+  // detectStitchColor can compare synchronously on every tap.
+  useEffect(() => {
+    const map = new Map<string, ImageData>()
+    symbolDataRef.current = map
+    for (const color of patternColors) {
+      if (!color.symbolImage) continue
+      const img = new Image()
+      img.onload = () => {
+        const c = document.createElement('canvas')
+        c.width = c.height = COMPARE_SIZE
+        c.getContext('2d')!.drawImage(img, 0, 0, COMPARE_SIZE, COMPARE_SIZE)
+        map.set(color.dmcNumber, c.getContext('2d')!.getImageData(0, 0, COMPARE_SIZE, COMPARE_SIZE))
+      }
+      img.src = color.symbolImage
+    }
+  }, [patternColors])
+
+  // Crop the stitch cell from the rendered canvas, scale to COMPARE_SIZE, and find
+  // the closest symbol image by mean absolute pixel difference.
+  const detectStitchColor = (col: number, row: number): string => {
+    const symData = symbolDataRef.current
+    if (!canvasRef.current || !gridConfig || symData.size === 0) return ''
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return ''
+    const cx = Math.round((gridConfig.originX + col * gridConfig.cellW) * RENDER_SCALE)
+    const cy = Math.round((gridConfig.originY + row * gridConfig.cellH) * RENDER_SCALE)
+    const cw = Math.max(1, Math.round(gridConfig.cellW * RENDER_SCALE))
+    const ch = Math.max(1, Math.round(gridConfig.cellH * RENDER_SCALE))
+    const x0 = Math.max(0, cx), y0 = Math.max(0, cy)
+    const x1 = Math.min(canvas.width, cx + cw), y1 = Math.min(canvas.height, cy + ch)
+    if (x1 <= x0 || y1 <= y0) return ''
+    // Scale cell region down to COMPARE_SIZE for fast comparison
+    const temp = document.createElement('canvas')
+    temp.width = x1 - x0; temp.height = y1 - y0
+    temp.getContext('2d')!.putImageData(ctx.getImageData(x0, y0, x1 - x0, y1 - y0), 0, 0)
+    const scaled = document.createElement('canvas')
+    scaled.width = scaled.height = COMPARE_SIZE
+    scaled.getContext('2d')!.drawImage(temp, 0, 0, COMPARE_SIZE, COMPARE_SIZE)
+    const cellPx = scaled.getContext('2d')!.getImageData(0, 0, COMPARE_SIZE, COMPARE_SIZE).data
+    let best = '', bestScore = Infinity
+    for (const [dmcNum, imgData] of symData) {
+      let diff = 0
+      for (let i = 0; i < cellPx.length; i++) diff += Math.abs(cellPx[i] - imgData.data[i])
+      if (diff < bestScore) { bestScore = diff; best = dmcNum }
+    }
+    return best
+  }
+
   // Unified SVG click handler — calibration or stitch toggling
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!canvasSize) return
@@ -143,11 +213,14 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       // Toggle the stitch square under the click
       const col = Math.floor((x - gridConfig.originX) / gridConfig.cellW)
       const row = Math.floor((y - gridConfig.originY) / gridConfig.cellH)
-      const key = `${col},${row}`
+      const key = `${pageNum}:${col},${row}`
       setProgress((prev) => {
         const next = { ...prev }
-        if (next[key]) delete next[key]
-        else next[key] = true
+        if (next[key] !== undefined) {
+          delete next[key]
+        } else {
+          next[key] = detectStitchColor(col, row)
+        }
         saveProgress(patternId, next)
         return next
       })
@@ -340,7 +413,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   const stitchW = canvasSize && gridConfig ? Math.round(canvasSize.w / gridConfig.cellW) : null
   const stitchH = canvasSize && gridConfig ? Math.round(canvasSize.h / gridConfig.cellH) : null
   const estimatedTotal = stitchW && stitchH ? stitchW * stitchH : 0
-  const completedCount = Object.keys(progress).length
+  const pagePrefix = `${pageNum}:`
+  const completedCount = Object.keys(progress).filter((k) => k.startsWith(pagePrefix)).length
   const pct = estimatedTotal > 0 ? Math.min(100, (completedCount / estimatedTotal) * 100) : 0
 
   return (
@@ -534,17 +608,24 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
                     {gridConfig && (
                       <>
                         {/* Completed stitch squares — drawn before grid lines so lines sit on top */}
-                        {Object.keys(progress).map((key) => {
-                          const [col, row] = key.split(',').map(Number)
-                          const rx = gridConfig.originX + col * gridConfig.cellW
-                          const ry = gridConfig.originY + row * gridConfig.cellH
-                          return (
-                            <rect key={key}
-                              x={rx + 0.5} y={ry + 0.5}
-                              width={gridConfig.cellW - 1} height={gridConfig.cellH - 1}
-                              fill="rgba(34,197,94,0.4)" />
-                          )
-                        })}
+                        {Object.keys(progress)
+                          .filter((k) => k.startsWith(pagePrefix))
+                          .map((key) => {
+                            const coords = key.slice(key.indexOf(':') + 1)
+                            const [col, row] = coords.split(',').map(Number)
+                            const rx = gridConfig.originX + col * gridConfig.cellW
+                            const ry = gridConfig.originY + row * gridConfig.cellH
+                            const dmc = DMC_BY_NUMBER.get(progress[key])
+                            const fill = dmc
+                              ? hexToRgba(dmc.hex, 0.65)
+                              : 'rgba(156,163,175,0.45)'
+                            return (
+                              <rect key={key}
+                                x={rx + 0.5} y={ry + 0.5}
+                                width={gridConfig.cellW - 1} height={gridConfig.cellH - 1}
+                                fill={fill} />
+                            )
+                          })}
                         {/* Grid lines */}
                         {gridPositions(gridConfig.originX, gridConfig.cellW, canvasSize.w).map((x, i) => (
                           <line key={`v${i}`} x1={x} y1={0} x2={x} y2={canvasSize.h}
