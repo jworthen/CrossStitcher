@@ -122,8 +122,13 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   useEffect(() => {
     if (!pdf || !canvasRef.current) return
     let cancelled = false
+    // Hold the pdf.js RenderTask so we can cancel it properly on cleanup,
+    // not just set a JS flag. Without this, the in-flight task keeps drawing
+    // to the canvas and can throw errors that race past the `cancelled` check.
+    let renderTask: { cancel: () => void } | null = null
     setRendering(true)
     setDetectedLines(null)
+    setError(null)
 
     pdf.getPage(pageNum).then((page) => {
       if (cancelled || !canvasRef.current) return
@@ -136,17 +141,25 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       canvas.style.width = `${cssW}px`
       canvas.style.height = `${cssH}px`
       const ctx = canvas.getContext('2d')!
-      return page.render({ canvas, canvasContext: ctx, viewport }).promise
+      const task = page.render({ canvas, canvasContext: ctx, viewport })
+      renderTask = task
+      return task.promise
         .then(() => { if (!cancelled) { setCanvasSize({ w: cssW, h: cssH }); setTimeout(detectGridLines, 0) } })
     }).then(() => {
       if (cancelled) return
       setRendering(false)
       transformRef.current?.resetTransform(0)
-    }).catch(() => {
-      if (!cancelled) { setError('Failed to render page.'); setRendering(false) }
+    }).catch((err) => {
+      // RenderingCancelledException fires when .cancel() is called — not a real error.
+      if (cancelled || err?.name === 'RenderingCancelledException') return
+      setError('Failed to render page.')
+      setRendering(false)
     })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      renderTask?.cancel()
+    }
   }, [pdf, pageNum])
 
   // Pre-render each color's symbol image to COMPARE_SIZE×COMPARE_SIZE ImageData so
