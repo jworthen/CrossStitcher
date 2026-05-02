@@ -8,6 +8,7 @@ import {
   deleteCloudPattern,
   subscribePatternsList,
 } from '../lib/userPatterns'
+import { uploadPatternPdf, downloadPatternPdf, deletePatternPdf } from '../lib/patternStorage'
 
 const DB_NAME = 'thready'
 const DB_VERSION = 1
@@ -162,15 +163,39 @@ export async function loadPatternData(id: string): Promise<{
     }
   }
 
-  // No IDB record — try cloud (e.g. signed in on a new device).
-  // The PDF binary lives in Firebase Storage and is fetched in Phase 7d;
-  // for now, cloud fallback returns metadata + per-pattern data with no file.
+  // No IDB record — try cloud (signed in on a new device). Download the PDF
+  // from Firebase Storage and seed IDB so future opens are instant. If the
+  // download fails (file never uploaded, network error), still return the
+  // cloud-side per-pattern data with file = null so the caller can recover.
   const uid = currentUid()
   if (!uid) return null
   const cloud = await loadCloudPatternData(uid, id)
   if (!cloud) return null
+
+  let file: ArrayBuffer | null = null
+  try {
+    file = await downloadPatternPdf(uid, id)
+  } catch (e) {
+    console.error('downloadPatternPdf:', e)
+  }
+
+  // Seed IDB with whatever we have so subsequent opens are local-fast.
+  if (file) {
+    const seeded: StoredPattern = {
+      id,
+      name: '',
+      dateAdded: Date.now(),
+      fileSize: file.byteLength,
+      file,
+      gridConfigs: cloud.gridConfigs,
+      progress: cloud.progress,
+      patternColors: cloud.patternColors,
+    }
+    try { await idbPut(db, seeded) } catch { /* quota — ignore */ }
+  }
+
   return {
-    file: null,
+    file,
     gridConfigs: cloud.gridConfigs ?? {},
     progress: cloud.progress,
     patternColors: cloud.patternColors,
@@ -312,6 +337,14 @@ export function usePatterns() {
     await idbPut(db, record)
     setPatterns((prev) => [toMeta(record), ...prev])
     await syncIndexToCloud()
+    // Upload the PDF in the background. Failure is non-fatal — the pattern
+    // remains usable locally even if the upload doesn't reach Storage.
+    const uid = currentUid()
+    if (uid) {
+      uploadPatternPdf(uid, record.id, buffer).catch((e) =>
+        console.error('uploadPatternPdf:', e)
+      )
+    }
   }, [])
 
   const deletePattern = useCallback(async (id: string) => {
@@ -320,7 +353,10 @@ export function usePatterns() {
     setPatterns((prev) => prev.filter((p) => p.id !== id))
     await syncIndexToCloud()
     const uid = currentUid()
-    if (uid) await deleteCloudPattern(uid, id).catch(console.error)
+    if (uid) {
+      await deleteCloudPattern(uid, id).catch(console.error)
+      await deletePatternPdf(uid, id)
+    }
   }, [])
 
   const updatePattern = useCallback(async (
