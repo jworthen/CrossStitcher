@@ -1,4 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import {
+  currentUid,
+  loadCloudPatternData,
+  savePatternsList,
+  saveCloudPatternData,
+  deleteCloudPattern,
+  subscribePatternsList,
+} from '../lib/userPatterns'
 
 const DB_NAME = 'thready'
 const DB_VERSION = 1
@@ -83,7 +92,7 @@ function idbDelete(db: IDBDatabase, id: string): Promise<void> {
   })
 }
 
-function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: StoredPattern): PatternMeta {
+function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: PatternMeta): PatternMeta {
   const meta: PatternMeta = { id, name, dateAdded, fileSize }
   if (designer) meta.designer = designer
   if (fabric) meta.fabric = fabric
@@ -91,8 +100,39 @@ function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: Stor
   return meta
 }
 
+// ── Cloud sync helpers ──────────────────────────────────────────────────────
+
+/** Rebuilds the cloud index from current IDB state. No-op when signed out. */
+async function syncIndexToCloud(): Promise<void> {
+  const uid = currentUid()
+  if (!uid) return
+  try {
+    const db = await openDB()
+    const all = await idbGetAll(db)
+    await savePatternsList(uid, all.map(toMeta).sort((a, b) => b.dateAdded - a.dateAdded))
+  } catch (e) { console.error('syncIndexToCloud:', e) }
+}
+
+/** Pushes per-pattern non-file data (grid configs, progress, colors) to cloud. */
+async function syncPatternDataToCloud(id: string): Promise<void> {
+  const uid = currentUid()
+  if (!uid) return
+  try {
+    const db = await openDB()
+    const record = await idbGet(db, id)
+    if (!record) return
+    await saveCloudPatternData(uid, id, {
+      gridConfigs: record.gridConfigs,
+      progress: record.progress,
+      patternColors: record.patternColors,
+    })
+  } catch (e) { console.error('syncPatternDataToCloud:', e) }
+}
+
+// ── Top-level loaders / savers ──────────────────────────────────────────────
+
 export async function loadPatternData(id: string): Promise<{
-  file: ArrayBuffer
+  file: ArrayBuffer | null
   gridConfigs: Record<number, GridConfig>
   progress?: Record<string, string>
   patternColors?: PatternColor[]
@@ -103,19 +143,38 @@ export async function loadPatternData(id: string): Promise<{
 } | null> {
   const db = await openDB()
   const record = await idbGet(db, id)
-  if (!record) return null
+
   // Migrate legacy single gridConfig → gridConfigs[1]
-  const gridConfigs: Record<number, GridConfig> = { ...(record.gridConfigs ?? {}) }
-  if (record.gridConfig && !gridConfigs[1]) gridConfigs[1] = record.gridConfig
+  const localGrid: Record<number, GridConfig> = { ...(record?.gridConfigs ?? {}) }
+  if (record?.gridConfig && !localGrid[1]) localGrid[1] = record.gridConfig
+
+  // If we have the IDB record (i.e. file is here), use it as primary.
+  if (record) {
+    return {
+      file: record.file,
+      gridConfigs: localGrid,
+      progress: record.progress,
+      patternColors: record.patternColors,
+      name: record.name,
+      designer: record.designer,
+      fabric: record.fabric,
+      notes: record.notes,
+    }
+  }
+
+  // No IDB record — try cloud (e.g. signed in on a new device).
+  // The PDF binary lives in Firebase Storage and is fetched in Phase 7d;
+  // for now, cloud fallback returns metadata + per-pattern data with no file.
+  const uid = currentUid()
+  if (!uid) return null
+  const cloud = await loadCloudPatternData(uid, id)
+  if (!cloud) return null
   return {
-    file: record.file,
-    gridConfigs,
-    progress: record.progress,
-    patternColors: record.patternColors,
-    name: record.name,
-    designer: record.designer,
-    fabric: record.fabric,
-    notes: record.notes,
+    file: null,
+    gridConfigs: cloud.gridConfigs ?? {},
+    progress: cloud.progress,
+    patternColors: cloud.patternColors,
+    name: '',  // index has the name; viewer screen receives it via props
   }
 }
 
@@ -131,6 +190,7 @@ export async function savePatternMeta(
   if (!updated.fabric) delete updated.fabric
   if (!updated.notes) delete updated.notes
   await idbPut(db, updated)
+  await syncIndexToCloud()
 }
 
 export async function savePatternColors(id: string, patternColors: PatternColor[]): Promise<void> {
@@ -141,6 +201,7 @@ export async function savePatternColors(id: string, patternColors: PatternColor[
   if (patternColors.length > 0) updated.patternColors = patternColors
   else delete updated.patternColors
   await idbPut(db, updated)
+  await syncPatternDataToCloud(id)
 }
 
 export async function saveProgress(id: string, progress: Record<string, string>): Promise<void> {
@@ -151,6 +212,7 @@ export async function saveProgress(id: string, progress: Record<string, string>)
   if (Object.keys(progress).length > 0) updated.progress = progress
   else delete updated.progress
   await idbPut(db, updated)
+  await syncPatternDataToCloud(id)
 }
 
 export async function saveGridConfig(id: string, page: number, gridConfig: GridConfig | undefined): Promise<void> {
@@ -166,6 +228,7 @@ export async function saveGridConfig(id: string, page: number, gridConfig: GridC
   else delete updated.gridConfigs
   delete updated.gridConfig
   await idbPut(db, updated)
+  await syncPatternDataToCloud(id)
 }
 
 // Clears grid config and progress for one page in one atomic write.
@@ -188,12 +251,15 @@ export async function clearGridAndProgress(id: string, page: number): Promise<vo
   if (Object.keys(progress).length > 0) updated.progress = progress
   else delete updated.progress
   await idbPut(db, updated)
+  await syncPatternDataToCloud(id)
 }
 
 export function usePatterns() {
+  const { user } = useAuth()
   const [patterns, setPatterns] = useState<PatternMeta[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Initial load from IDB
   useEffect(() => {
     openDB()
       .then((db) => idbGetAll(db))
@@ -203,6 +269,35 @@ export function usePatterns() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  // Subscribe to cloud index when signed in. First snapshot merges cloud +
+  // local-on-top so any unsynced local-only patterns survive sign-in. Later
+  // snapshots from other devices replace state directly.
+  useEffect(() => {
+    if (!user) return
+    let firstSnapshot = true
+    return subscribePatternsList(user.uid, (cloudPatterns, hasPendingWrites) => {
+      if (hasPendingWrites) return
+      if (firstSnapshot) {
+        firstSnapshot = false
+        setPatterns((local) => {
+          const cloudById = new Map(cloudPatterns.map((p) => [p.id, p]))
+          const localById = new Map(local.map((p) => [p.id, p]))
+          const allIds = new Set([...cloudById.keys(), ...localById.keys()])
+          const merged = Array.from(allIds)
+            .map((id) => localById.get(id) ?? cloudById.get(id)!)
+            .sort((a, b) => b.dateAdded - a.dateAdded)
+          // If we contributed anything cloud didn't have, push the union back
+          const cloudIds = new Set(cloudById.keys())
+          const localOnly = merged.some((p) => !cloudIds.has(p.id))
+          if (localOnly) savePatternsList(user.uid, merged).catch(console.error)
+          return merged
+        })
+      } else {
+        setPatterns([...cloudPatterns].sort((a, b) => b.dateAdded - a.dateAdded))
+      }
+    })
+  }, [user])
 
   const addPattern = useCallback(async (file: File) => {
     const buffer = await file.arrayBuffer()
@@ -216,12 +311,16 @@ export function usePatterns() {
     const db = await openDB()
     await idbPut(db, record)
     setPatterns((prev) => [toMeta(record), ...prev])
+    await syncIndexToCloud()
   }, [])
 
   const deletePattern = useCallback(async (id: string) => {
     const db = await openDB()
     await idbDelete(db, id)
     setPatterns((prev) => prev.filter((p) => p.id !== id))
+    await syncIndexToCloud()
+    const uid = currentUid()
+    if (uid) await deleteCloudPattern(uid, id).catch(console.error)
   }, [])
 
   const updatePattern = useCallback(async (
