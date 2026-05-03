@@ -41,12 +41,10 @@ Each color has three states:
 - **Filter tabs** — `All`, `In Stock`, `Low`, `Missing`. Combine with search to
   narrow down further (e.g. find every "low" red).
 
-### Sort and view density
+### Sort
 
 - **# Number / ◉ Color** — switch between numerical order and color-family
   groups (Red, Blue, Yellow-Green, etc.).
-- **S / M / L** — pick a row size. Compact fits more colors on screen; spacious
-  is easier on phones.
 
 ### Switching between brands
 
@@ -238,6 +236,8 @@ By default everything is stored locally in your browser:
 
 - **Inventory and color notes** — `localStorage`
 - **Patterns, grids, and stitch progress** — `IndexedDB`
+- **Active tab and last-viewed page per pattern** — `localStorage`, so a
+  refresh keeps you where you were
 
 If the host has Firebase configured (see the README), you can also **sign in**
 to sync the same data across devices. Sync is opt-in; no account is required
@@ -292,8 +292,10 @@ This also means:
   stitch-color matching can fill in real DMC colors as you tap cells.
 - **Use search + bulk actions together.** Want every shade of blue marked low?
   Search "blue", then Actions → Mark visible as Low.
-- **Backup with Export → JSON.** It's the only way to move your inventory
-  between devices today.
+- **Use cloud sync for cross-device, Export → JSON for portable backups.** If
+  you're signed in, your inventory and patterns sync across devices in real
+  time. If you're not, Export → JSON gives you a file you can stash anywhere
+  and re-import on another device.
 
 ---
 
