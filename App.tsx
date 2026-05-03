@@ -55,11 +55,10 @@ export default function App() {
               strokeLinecap="round" fill="none" />
           </svg>
           <span style={{
-            fontFamily: "'Fraunces', Georgia, serif",
-            fontStyle: 'italic',
-            fontSize: '1.5rem',
-            fontWeight: 600,
-            letterSpacing: '-0.01em',
+            fontFamily: "'Caveat', 'Marker Felt', cursive",
+            fontSize: '1.875rem',
+            fontWeight: 700,
+            letterSpacing: '0.005em',
             lineHeight: 1,
           }}>Thready</span>
         </span>

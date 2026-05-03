@@ -56,12 +56,11 @@ html[data-theme="dark"] .header {
 }
 
 .title {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.015em;
   line-height: 1;
   position: relative;
 }
@@ -131,11 +130,11 @@ html[data-theme="dark"] .header {
 }
 
 .emptyTitle {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text);
+  letter-spacing: -0.005em;
 }
 
 .emptyHint {
