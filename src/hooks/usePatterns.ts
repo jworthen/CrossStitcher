@@ -41,7 +41,10 @@ export interface PatternMeta {
 }
 
 interface StoredPattern extends PatternMeta {
-  file: ArrayBuffer
+  // Undefined when the record is a "stub" written by the cloud subscription
+  // for a pattern uploaded from another device. The PDF is fetched from
+  // Firebase Storage on first open and the stub is promoted in place.
+  file?: ArrayBuffer
   gridConfig?: GridConfig                        // legacy — migrated to gridConfigs on read
   gridConfigs?: Record<number, GridConfig>       // per-page grid configs
   progress?: Record<string, string>
@@ -103,6 +106,27 @@ function toMeta({ id, name, dateAdded, fileSize, designer, fabric, notes }: Patt
 
 // ── Cloud sync helpers ──────────────────────────────────────────────────────
 
+// Per-uid set of pattern IDs we've previously seen in a cloud snapshot. Used
+// by the cloud subscription to detect cross-device deletions: an ID present
+// here but absent from a new snapshot was deleted on another device, so we
+// prune it from local IDB before the next syncIndexToCloud can resurrect it.
+// Persisted across sessions so a deletion that happens while this device is
+// closed still propagates on the next open.
+const LAST_CLOUD_IDS_PREFIX = 'thready-last-cloud-ids-'
+
+function loadLastCloudIds(uid: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(LAST_CLOUD_IDS_PREFIX + uid)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch { return new Set() }
+}
+
+function saveLastCloudIds(uid: string, ids: Set<string>): void {
+  try {
+    localStorage.setItem(LAST_CLOUD_IDS_PREFIX + uid, JSON.stringify([...ids]))
+  } catch { /* quota — ignore */ }
+}
+
 /** Rebuilds the cloud index from current IDB state. No-op when signed out. */
 async function syncIndexToCloud(): Promise<void> {
   const uid = currentUid()
@@ -149,10 +173,24 @@ export async function loadPatternData(id: string): Promise<{
   const localGrid: Record<number, GridConfig> = { ...(record?.gridConfigs ?? {}) }
   if (record?.gridConfig && !localGrid[1]) localGrid[1] = record.gridConfig
 
-  // If we have the IDB record (i.e. file is here), use it as primary.
+  // IDB record exists. If it's a full record the file is here; if it's a
+  // stub written by the cloud subscription, fetch the PDF from Storage now
+  // and promote the stub to a full record so future opens are local-fast.
   if (record) {
+    let file: ArrayBuffer | null = record.file ?? null
+    if (!file) {
+      const uid = currentUid()
+      if (uid) {
+        try { file = await downloadPatternPdf(uid, id) }
+        catch (e) { console.error('downloadPatternPdf:', e) }
+        if (file) {
+          try { await idbPut(db, { ...record, file, fileSize: file.byteLength }) }
+          catch { /* quota — ignore */ }
+        }
+      }
+    }
     return {
-      file: record.file,
+      file,
       gridConfigs: localGrid,
       progress: record.progress,
       patternColors: record.patternColors,
@@ -284,12 +322,22 @@ export function usePatterns() {
   const [patterns, setPatterns] = useState<PatternMeta[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Initial load from IDB
+  // Initial load from IDB. Functional setState so a cloud snapshot that
+  // already populated state (Firestore's local cache fires faster than
+  // IDB.getAll) isn't clobbered by an empty/partial local IDB result.
   useEffect(() => {
     openDB()
       .then((db) => idbGetAll(db))
       .then((all) => {
-        setPatterns(all.map(toMeta).sort((a, b) => b.dateAdded - a.dateAdded))
+        setPatterns((prev) => {
+          const localMetas = all.map(toMeta)
+          const localIds = new Set(localMetas.map((p) => p.id))
+          const merged = [...localMetas]
+          for (const p of prev) {
+            if (!localIds.has(p.id)) merged.push(p)
+          }
+          return merged.sort((a, b) => b.dateAdded - a.dateAdded)
+        })
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -298,23 +346,66 @@ export function usePatterns() {
   // Subscribe to cloud index when signed in. First snapshot merges cloud +
   // local-on-top so any unsynced local-only patterns survive sign-in. Later
   // snapshots from other devices replace state directly.
+  //
+  // Each snapshot also mirrors the cloud index into local IDB (writing stubs
+  // for cloud-only patterns and syncing metadata edits from other devices).
+  // syncIndexToCloud derives the cloud index from local IDB, so without this
+  // mirror the laptop would silently drop the phone's uploads from cloud the
+  // next time anything was added/edited on the laptop.
   useEffect(() => {
     if (!user) return
     let firstSnapshot = true
-    return subscribePatternsList(user.uid, (cloudPatterns, hasPendingWrites) => {
+    let lastCloudIds = loadLastCloudIds(user.uid)
+    return subscribePatternsList(user.uid, async (cloudPatterns, hasPendingWrites) => {
       if (hasPendingWrites) return
+      const cloudIdSet = new Set(cloudPatterns.map((p) => p.id))
+
+      try {
+        const idb = await openDB()
+        const all = await idbGetAll(idb)
+        const localById = new Map(all.map((p) => [p.id, p]))
+        for (const cp of cloudPatterns) {
+          const existing = localById.get(cp.id)
+          const next: StoredPattern = existing
+            ? { ...existing, name: cp.name, dateAdded: cp.dateAdded, fileSize: cp.fileSize }
+            : { id: cp.id, name: cp.name, dateAdded: cp.dateAdded, fileSize: cp.fileSize }
+          if (cp.designer) next.designer = cp.designer; else delete next.designer
+          if (cp.fabric) next.fabric = cp.fabric; else delete next.fabric
+          if (cp.notes) next.notes = cp.notes; else delete next.notes
+          await idbPut(idb, next).catch((e) => console.error('cloud→IDB put:', e))
+        }
+        // Prune: anything we previously saw in cloud but isn't there now was
+        // deleted from another device. Remove from IDB so the next local
+        // write doesn't resurrect it via syncIndexToCloud.
+        for (const id of lastCloudIds) {
+          if (cloudIdSet.has(id)) continue
+          await idbDelete(idb, id).catch((e) => console.error('IDB prune:', e))
+        }
+      } catch (e) { console.error('cloud-IDB sync:', e) }
+
+      // Capture before we update — the firstSnapshot merge needs to know
+      // which local entries were previously in cloud (and so are deletions
+      // from another device, not local-only originals to push up).
+      const wereKnownToCloud = lastCloudIds
+      lastCloudIds = cloudIdSet
+      saveLastCloudIds(user.uid, cloudIdSet)
+
       if (firstSnapshot) {
         firstSnapshot = false
         setPatterns((local) => {
+          // Drop local entries we just pruned. What remains and isn't in
+          // cloud is a genuine local-only pattern (uploaded before sign-in
+          // or with sync still pending) that should be pushed up.
+          const validLocal = local.filter((p) =>
+            cloudIdSet.has(p.id) || !wereKnownToCloud.has(p.id)
+          )
           const cloudById = new Map(cloudPatterns.map((p) => [p.id, p]))
-          const localById = new Map(local.map((p) => [p.id, p]))
+          const localById = new Map(validLocal.map((p) => [p.id, p]))
           const allIds = new Set([...cloudById.keys(), ...localById.keys()])
           const merged = Array.from(allIds)
             .map((id) => localById.get(id) ?? cloudById.get(id)!)
             .sort((a, b) => b.dateAdded - a.dateAdded)
-          // If we contributed anything cloud didn't have, push the union back
-          const cloudIds = new Set(cloudById.keys())
-          const localOnly = merged.some((p) => !cloudIds.has(p.id))
+          const localOnly = merged.some((p) => !cloudIdSet.has(p.id))
           if (localOnly) savePatternsList(user.uid, merged).catch(console.error)
           return merged
         })
