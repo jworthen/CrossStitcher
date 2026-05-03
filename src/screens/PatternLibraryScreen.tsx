@@ -78,20 +78,36 @@ export default function PatternLibraryScreen({ onOpenViewer }: Props) {
         {!loading && patterns.length === 0 ? (
           <div className={styles.empty}>
             <svg
-              width="96" height="96" viewBox="0 0 96 96" fill="none"
+              width="110" height="110" viewBox="0 0 110 110" fill="none"
               aria-hidden="true" className={styles.emptyIllustration}
             >
-              {/* Folded pattern page with a stitched corner */}
-              <path d="M22 18 H58 L70 30 V78 H22 Z"
-                fill="var(--color-surface)" stroke="currentColor" strokeWidth="2"/>
-              <path d="M58 18 V30 H70" fill="none" stroke="currentColor" strokeWidth="2"/>
-              <path d="M30 42 H62 M30 50 H62 M30 58 H54"
-                stroke="currentColor" strokeWidth="1" opacity="0.4" strokeLinecap="round"/>
-              {/* Tiny x-stitches in the bottom-right */}
-              <path d="M40 66 L46 72 M46 66 L40 72"
-                stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round"/>
-              <path d="M50 66 L56 72 M56 66 L50 72"
-                stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round"/>
+              {/* Sparkles */}
+              <path d="M16 22 L17 25 L20 26 L17 27 L16 30 L15 27 L12 26 L15 25 Z"
+                fill="var(--pastel-butter)" opacity="0.9"/>
+              <circle cx="92" cy="20" r="3" fill="var(--pastel-mint)" opacity="0.85"/>
+              <circle cx="20" cy="86" r="2.5" fill="var(--pastel-sky)" opacity="0.85"/>
+
+              {/* Pattern page with peach-soft fill */}
+              <path d="M28 22 H66 L80 36 V90 H28 Z"
+                fill="var(--pastel-peach-soft)" stroke="var(--color-primary)" strokeWidth="2" strokeLinejoin="round"/>
+              <path d="M66 22 V36 H80" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinejoin="round"/>
+
+              {/* Lined "content" rendered in friendly pastels */}
+              <path d="M36 48 H72" stroke="var(--pastel-pink)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M36 56 H72" stroke="var(--pastel-mint)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M36 64 H62" stroke="var(--pastel-sky)" strokeWidth="2" strokeLinecap="round"/>
+
+              {/* Cross-stitches in the bottom-right */}
+              <path d="M44 76 L50 82 M50 76 L44 82"
+                stroke="var(--pastel-lilac)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M54 76 L60 82 M60 76 L54 82"
+                stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M64 76 L70 82 M70 76 L64 82"
+                fill="none" stroke="var(--pastel-butter)" strokeWidth="2" strokeLinecap="round"/>
+
+              {/* Tiny heart in the corner */}
+              <path d="M88 82 c -3 -4 -8 -2 -8 2 c 0 3 8 8 8 8 s 8 -5 8 -8 c 0 -4 -5 -6 -8 -2 z"
+                fill="var(--pastel-pink)" opacity="0.85"/>
             </svg>
             <p className={styles.emptyTitle}>Your pattern library is empty</p>
             <p className={styles.emptyHint}>Drop in your first PDF to start stitching.</p>
