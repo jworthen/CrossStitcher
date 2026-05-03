@@ -7,6 +7,7 @@ import { usePreferredBrand } from '../hooks/usePreferredBrand'
 import { useDarkMode } from '../hooks/useDarkMode'
 import FlossItem, { Density } from '../components/FlossItem'
 import ConvertModal from '../components/ConvertModal'
+import Confetti from '../components/Confetti'
 import styles from './FlossListScreen.module.css'
 
 type FilterTab = 'all' | 'in_stock' | 'low' | 'unowned'
@@ -235,7 +236,8 @@ export default function FlossListScreen() {
 
         {/* Header */}
         <header className={styles.header}>
-          <div>
+          <Confetti variant="header" className={styles.headerConfetti} />
+          <div className={styles.headerInner}>
             <h1 className={styles.title}>{BRAND_BY_ID[brand].name} Floss</h1>
             <p className={styles.subtitle}>
               {counts.inStock + counts.low}/{counts.total} owned

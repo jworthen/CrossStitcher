@@ -44,16 +44,32 @@
   line-height: 1;
 }
 
+/* Active-tab base — colors get overridden per-screen below. */
 .tabActive {
   color: var(--color-primary);
 }
 
 .tabActive .iconWrap {
   background: var(--color-primary-soft);
-  transform: scale(1.05);
+  transform: scale(1.08);
 }
 
 .tabActive:hover {
   background: var(--color-surface-hover);
   color: var(--color-primary);
+}
+
+/* Per-screen pastel rotation: inventory → pink, patterns → mint. */
+.tabActive[data-screen="inventory"] {
+  color: var(--color-primary);
+}
+.tabActive[data-screen="inventory"] .iconWrap {
+  background: var(--pastel-pink-soft);
+}
+
+.tabActive[data-screen="patterns"] {
+  color: var(--color-green);
+}
+.tabActive[data-screen="patterns"] .iconWrap {
+  background: var(--pastel-mint-soft);
 }

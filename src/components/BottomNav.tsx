@@ -46,6 +46,7 @@ export default function BottomNav({ screen, onNavigate }: Props) {
   return (
     <nav className={styles.nav}>
       <button
+        data-screen="inventory"
         className={`${styles.tab} ${screen === 'inventory' ? styles.tabActive : ''}`}
         onClick={() => onNavigate('inventory')}
       >
@@ -55,6 +56,7 @@ export default function BottomNav({ screen, onNavigate }: Props) {
         <span className={styles.label}>Inventory</span>
       </button>
       <button
+        data-screen="patterns"
         className={`${styles.tab} ${screen === 'patterns' ? styles.tabActive : ''}`}
         onClick={() => onNavigate('patterns')}
       >
