@@ -287,6 +287,7 @@ export default function FlossListScreen() {
           {TABS.map(({ key, label }) => (
             <button
               key={key}
+              data-tab={key}
               className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`}
               onClick={() => setActiveTab(key)}
             >
@@ -396,22 +397,41 @@ export default function FlossListScreen() {
       <main className={styles.main}>
         {filtered.length === 0 ? (
           <div className={styles.emptyState}>
-            {/* Smiling spool with thread-trail */}
-            <svg width="92" height="92" viewBox="0 0 92 92" fill="none" aria-hidden="true" className={styles.emptyIllustration}>
-              <ellipse cx="46" cy="22" rx="22" ry="6" fill="currentColor" opacity="0.18"/>
-              <rect x="24" y="22" width="44" height="44" rx="4" fill="currentColor" opacity="0.10"/>
-              <ellipse cx="46" cy="66" rx="22" ry="6" fill="currentColor" opacity="0.18"/>
-              <path d="M28 32 H64 M28 40 H64 M28 48 H64 M28 56 H64"
-                stroke="currentColor" strokeWidth="0.8" opacity="0.30" strokeLinecap="round"/>
-              {/* Thread trailing off bottom-right with a little curl */}
-              <path d="M64 60 Q78 64 80 76 Q80 84 72 84"
-                stroke="var(--color-accent)" strokeWidth="2"
+            {/* Smiling spool with rainbow threads + sparkles */}
+            <svg width="110" height="110" viewBox="0 0 110 110" fill="none" aria-hidden="true" className={styles.emptyIllustration}>
+              {/* Sparkles */}
+              <path d="M14 22 L15 26 L19 27 L15 28 L14 32 L13 28 L9 27 L13 26 Z"
+                fill="var(--pastel-butter)" opacity="0.9"/>
+              <path d="M96 78 L97 81 L100 82 L97 83 L96 86 L95 83 L92 82 L95 81 Z"
+                fill="var(--pastel-pink)" opacity="0.9"/>
+              <circle cx="92" cy="22" r="2.5" fill="var(--pastel-mint)" opacity="0.8"/>
+              <circle cx="18" cy="80" r="3" fill="var(--pastel-sky)" opacity="0.8"/>
+
+              {/* Spool body */}
+              <ellipse cx="55" cy="32" rx="22" ry="6" fill="var(--pastel-peach-soft)" stroke="var(--color-primary)" strokeWidth="1.6"/>
+              <rect x="33" y="32" width="44" height="44" rx="3" fill="var(--pastel-pink-soft)" stroke="var(--color-primary)" strokeWidth="1.6"/>
+              <ellipse cx="55" cy="76" rx="22" ry="6" fill="var(--pastel-peach-soft)" stroke="var(--color-primary)" strokeWidth="1.6"/>
+
+              {/* Thread wraps in rainbow pastels */}
+              <path d="M37 40 H73" stroke="var(--pastel-pink)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M37 47 H73" stroke="var(--pastel-peach)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M37 54 H73" stroke="var(--pastel-butter)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M37 61 H73" stroke="var(--pastel-mint)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M37 68 H73" stroke="var(--pastel-sky)" strokeWidth="2" strokeLinecap="round"/>
+
+              {/* Thread trailing off with a curl */}
+              <path d="M73 70 Q88 74 89 84 Q88 92 80 91"
+                stroke="var(--pastel-lilac)" strokeWidth="2.2"
                 strokeLinecap="round" fill="none"/>
+
               {/* Eyes + smile */}
-              <circle cx="40" cy="42" r="1.6" fill="currentColor" opacity="0.7"/>
-              <circle cx="52" cy="42" r="1.6" fill="currentColor" opacity="0.7"/>
-              <path d="M40 50 Q46 54 52 50" stroke="currentColor"
-                strokeWidth="1.6" strokeLinecap="round" fill="none" opacity="0.7"/>
+              <circle cx="48" cy="49" r="1.6" fill="var(--color-text)" opacity="0.75"/>
+              <circle cx="62" cy="49" r="1.6" fill="var(--color-text)" opacity="0.75"/>
+              <path d="M48 56 Q55 60 62 56" stroke="var(--color-text)"
+                strokeWidth="1.6" strokeLinecap="round" fill="none" opacity="0.75"/>
+              {/* Cheeks */}
+              <circle cx="44" cy="55" r="2" fill="var(--pastel-pink)" opacity="0.55"/>
+              <circle cx="66" cy="55" r="2" fill="var(--pastel-pink)" opacity="0.55"/>
             </svg>
             <p className={styles.emptyTitle}>
               {search ? `Nothing for "${search}"` : 'Nothing here yet'}
