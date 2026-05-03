@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { usePatterns, PatternMeta } from '../hooks/usePatterns'
+import Confetti from '../components/Confetti'
 import styles from './PatternLibraryScreen.module.css'
 
 function formatBytes(bytes: number): string {
@@ -20,15 +21,21 @@ interface Props {
 export default function PatternLibraryScreen({ onOpenViewer }: Props) {
   const { patterns, loading, addPattern, deletePattern } = usePatterns()
   const [deletePending, setDeletePending] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
+  /** uploading is null when idle, or { done, total } during a multi-PDF batch. */
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    await addPattern(file)
-    setUploading(false)
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
+    setUploading({ done: 0, total: files.length })
+    // Sequential adds — keeps IDB writes ordered and lets each upload kick off
+    // its Storage transfer before we move to the next file.
+    for (let i = 0; i < files.length; i++) {
+      try { await addPattern(files[i]) } catch (err) { console.error('addPattern:', err) }
+      setUploading({ done: i + 1, total: files.length })
+    }
+    setUploading(null)
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -51,7 +58,8 @@ export default function PatternLibraryScreen({ onOpenViewer }: Props) {
     <div className={styles.container} onClick={() => setDeletePending(null)}>
       <div className={styles.sticky}>
         <header className={styles.header}>
-          <div>
+          <Confetti variant="header" className={styles.headerConfetti} />
+          <div className={styles.headerInner}>
             <h1 className={styles.title}>Patterns</h1>
             <p className={styles.subtitle}>
               {loading ? 'Loading…' : `${patterns.length} pattern${patterns.length === 1 ? '' : 's'}`}
@@ -60,14 +68,17 @@ export default function PatternLibraryScreen({ onOpenViewer }: Props) {
           <button
             className={styles.addBtn}
             onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
-            disabled={uploading}
+            disabled={uploading !== null}
           >
-            {uploading ? 'Adding…' : '+ Add PDF'}
+            {uploading
+              ? `Adding ${uploading.done}/${uploading.total}…`
+              : '+ Add PDFs'}
           </button>
           <input
             ref={inputRef}
             type="file"
             accept="application/pdf"
+            multiple
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
@@ -77,6 +88,7 @@ export default function PatternLibraryScreen({ onOpenViewer }: Props) {
       <main className={styles.main}>
         {!loading && patterns.length === 0 ? (
           <div className={styles.empty}>
+            <Confetti variant="header" className={styles.emptyConfetti} />
             <svg
               width="110" height="110" viewBox="0 0 110 110" fill="none"
               aria-hidden="true" className={styles.emptyIllustration}
