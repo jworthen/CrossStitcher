@@ -222,10 +222,20 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
   }
 
   // Scan the rendered canvas to find where the cross-stitch grid lines are.
-  // Strategy: for every (period, phase) pair, average the brightness at positions
-  // {phase, phase+period, phase+2*period, …}. The true grid gives the darkest
-  // average because every sampled position lands on a dark grid line.
-  // Iterating period from small→large ensures the fundamental period wins over harmonics.
+  //
+  // For each axis we compute two 1D signals over the central 70% of the page:
+  //   • brightness — mean luminance per CSS row/col (peaks DARK at grid lines)
+  //   • edges      — |brightness[i] - brightness[i-1]| (peaks HIGH at edges)
+  //
+  // Brightness alone fails on dense colored charts, where heavy symbols dominate
+  // the per-row average and the actual cell-period signal is buried. Edge peaks
+  // catch grid-line transitions regardless of cell content.
+  //
+  // We collect up to four candidate periods (row × {bright, edge}, col × same).
+  // Cells are square, so the actual cell period should appear in at least two
+  // candidates; we cluster within ±6% and use the median of the largest cluster.
+  // This is robust to single-axis or single-method failures (one detector
+  // grabbing a 2×-cell harmonic, etc.).
   const detectGridLines = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || canvas.width === 0 || canvas.height === 0) return
@@ -239,11 +249,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
     const data = ctx.getImageData(0, 0, CW, CH).data
 
-    // Build CSS-resolution brightness profiles in one row-major pixel pass.
-    // Every canvas pixel contributes to both its CSS row and CSS column bucket.
     const rowAcc = new Float64Array(cssH)
     const colAcc = new Float64Array(cssW)
-
     for (let y = 0; y < CH; y++) {
       const cy = (y / RENDER_SCALE) | 0
       const base = y * CW * 4
@@ -255,7 +262,6 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       }
     }
 
-    // Normalise: each CSS row bucket holds CW*RENDER_SCALE values; each CSS col holds CH*RENDER_SCALE
     const rowNorm = CW * RENDER_SCALE
     const colNorm = CH * RENDER_SCALE
     const rowBright = new Float64Array(cssH)
@@ -263,10 +269,24 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     for (let i = 0; i < cssH; i++) rowBright[i] = rowAcc[i] / rowNorm
     for (let i = 0; i < cssW; i++) colBright[i] = colAcc[i] / colNorm
 
-    // Returns the SMALLEST period (0.25px resolution) where the best-phase score exceeds a
-    // threshold. Searching float periods with linear interpolation avoids the integer-period
-    // drift problem where a period of 11.76px would never cleanly align on any integer grid.
-    const findBestGrid = (profile: Float64Array, minP: number, maxP: number) => {
+    // Edge profiles: |Δ| between adjacent CSS rows / cols. First entry is 0.
+    const rowEdge = new Float64Array(cssH)
+    const colEdge = new Float64Array(cssW)
+    for (let i = 1; i < cssH; i++) rowEdge[i] = Math.abs(rowBright[i] - rowBright[i - 1])
+    for (let i = 1; i < cssW; i++) colEdge[i] = Math.abs(colBright[i] - colBright[i - 1])
+
+    const THRESHOLD = 0.65
+    const SUB_RATIO = 0.6  // sub-period must score ≥ 60% of parent — was an
+                           // absolute 0.15 which let noise sub-harmonics win.
+
+    // Find the smallest period at which the profile has a phase scoring above
+    // THRESHOLD (z-score against profile mean/std). `prefer = 'dark'` looks
+    // for dark phases (brightness profile); `prefer = 'peak'` looks for the
+    // brightest phases (edge profile).
+    type Period = { period: number; phase: number; score: number }
+    const findPeriod = (
+      profile: Float64Array, minP: number, maxP: number, prefer: 'dark' | 'peak',
+    ): Period | null => {
       const N = profile.length
       if (N < minP * 3) return null
       let mean = 0
@@ -275,18 +295,13 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       let variance = 0
       for (let i = 0; i < N; i++) variance += (profile[i] - mean) ** 2
       const std = Math.sqrt(variance / N)
-      if (std < 0.5) return null  // image too uniform — no detectable grid
+      if (std < 0.05) return null  // signal too flat to detect
 
       const lerp = (pos: number): number => {
         const lo = pos | 0
         const hi = lo + 1
         return hi < N ? profile[lo] + (pos - lo) * (profile[hi] - profile[lo]) : profile[lo]
       }
-
-      // Lowered from 0.9 — dense/colorful charts have thin grid lines whose
-      // contrast doesn't reach 0.9 but is still clearly periodic at 0.65.
-      const THRESHOLD = 0.65
-      const clampedMax = Math.min(maxP, N / 3)
 
       const evalPeriod = (P: number) => {
         let bestScore = -Infinity, bestPhase = -1
@@ -295,52 +310,87 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
           let sum = 0, count = 0
           for (let pos = phase; pos < N; pos += P) { sum += lerp(pos); count++ }
           if (count < 3) continue
-          const score = (mean - sum / count) / std
+          const avg = sum / count
+          const score = prefer === 'dark' ? (mean - avg) / std : (avg - mean) / std
           if (score > bestScore) { bestScore = score; bestPhase = phase }
         }
         return { score: bestScore, phase: bestPhase }
       }
 
+      const clampedMax = Math.min(maxP, N / 3)
       for (let s = 0; minP + s * 0.25 <= clampedMax; s++) {
         const P = minP + s * 0.25
         const { score: bestScore, phase: bestPhase } = evalPeriod(P)
         if (bestScore > THRESHOLD && bestPhase >= 0) {
-          // Harmonic guard: if a sub-period also scores well, the detected period
-          // is likely a bold-line harmonic (e.g. every-10-stitches bold line).
-          // Walk divisors 2–10 and return the smallest that clears half-threshold.
+          // Tighter harmonic guard: a sub-period only wins if it scores at least
+          // 60% of the parent. Loose 0.15-absolute thresholds let pixel-grid
+          // anti-aliasing spikes (P/2 etc.) take over the detection.
+          const subThreshold = bestScore * SUB_RATIO
           for (let div = 2; div <= 10; div++) {
             const subP = P / div
             if (subP < minP) break
-            const { score: subScore, phase: subPhase } = evalPeriod(subP)
-            if (subScore > 0.15 && subPhase >= 0) {
-              return { period: subP, phase: subPhase }
+            const sub = evalPeriod(subP)
+            if (sub.score > subThreshold && sub.phase >= 0) {
+              return { period: subP, phase: sub.phase, score: sub.score }
             }
           }
-          return { period: P, phase: bestPhase }
+          return { period: P, phase: bestPhase, score: bestScore }
         }
       }
-
       return null
     }
 
-    // Analyse the central 70% to skip headers, footers, and legend areas at page edges.
     const rowCropStart = (cssH * 0.15) | 0
-    const rowSub = rowBright.subarray(rowCropStart, (cssH * 0.85) | 0)
-    const rowGrid = findBestGrid(rowSub, 3, Math.min(120, rowSub.length / 3))
-
     const colCropStart = (cssW * 0.15) | 0
-    const colSub = colBright.subarray(colCropStart, (cssW * 0.85) | 0)
-    const colGrid = findBestGrid(colSub, 3, Math.min(120, colSub.length / 3))
+    const rowSubBright = rowBright.subarray(rowCropStart, (cssH * 0.85) | 0)
+    const rowSubEdge = rowEdge.subarray(rowCropStart, (cssH * 0.85) | 0)
+    const colSubBright = colBright.subarray(colCropStart, (cssW * 0.85) | 0)
+    const colSubEdge = colEdge.subarray(colCropStart, (cssW * 0.85) | 0)
+    const minP = 3
+    const rowMaxP = Math.min(120, rowSubBright.length / 3)
+    const colMaxP = Math.min(120, colSubBright.length / 3)
 
-    if (!rowGrid || !colGrid) { setDetectedLines(null); return }
+    type Candidate = { axis: 'row' | 'col'; method: 'bright' | 'edge' } & Period
+    const cands: Candidate[] = []
+    const push = (axis: 'row' | 'col', method: 'bright' | 'edge', p: Period | null) => {
+      if (p) cands.push({ axis, method, ...p })
+    }
+    push('row', 'bright', findPeriod(rowSubBright, minP, rowMaxP, 'dark'))
+    push('row', 'edge', findPeriod(rowSubEdge, minP, rowMaxP, 'peak'))
+    push('col', 'bright', findPeriod(colSubBright, minP, colMaxP, 'dark'))
+    push('col', 'edge', findPeriod(colSubEdge, minP, colMaxP, 'peak'))
 
-    // Cross-stitch cells are always square — average the two independently-detected
-    // periods so that rounding differences on each axis don't produce a skewed grid.
-    const cellSize = (rowGrid.period + colGrid.period) / 2
+    if (cands.length === 0) { setDetectedLines(null); return }
 
-    // Adjust phase back to full-page absolute coordinates.
-    const rowPhase = (rowGrid.phase + rowCropStart) % cellSize
-    const colPhase = (colGrid.phase + colCropStart) % cellSize
+    // Cluster candidates by period (within ±6%). The actual cell period is the
+    // one most candidates agree on, since cells are square so row=col.
+    const CLUSTER_TOL = 0.06
+    const clusters: Candidate[][] = []
+    for (const c of cands) {
+      let placed = false
+      for (const g of clusters) {
+        const avg = g.reduce((s, x) => s + x.period, 0) / g.length
+        if (Math.abs(c.period - avg) / avg <= CLUSTER_TOL) { g.push(c); placed = true; break }
+      }
+      if (!placed) clusters.push([c])
+    }
+    // Prefer larger cluster; tie-break by total score.
+    clusters.sort((a, b) =>
+      b.length - a.length || b.reduce((s, c) => s + c.score, 0) - a.reduce((s, c) => s + c.score, 0)
+    )
+    const winner = clusters[0]
+
+    // Median period of the winning cluster (cells are square — same on both axes).
+    const sortedPeriods = winner.map((c) => c.period).sort((a, b) => a - b)
+    const cellSize = sortedPeriods[Math.floor(sortedPeriods.length / 2)]
+
+    // Phase: use the highest-scoring row and col candidates from the winner.
+    const rowWinners = winner.filter((c) => c.axis === 'row').sort((a, b) => b.score - a.score)
+    const colWinners = winner.filter((c) => c.axis === 'col').sort((a, b) => b.score - a.score)
+    const rowPhaseLocal = rowWinners[0]?.phase ?? colWinners[0]?.phase ?? 0
+    const colPhaseLocal = colWinners[0]?.phase ?? rowWinners[0]?.phase ?? 0
+    const rowPhase = (rowPhaseLocal + rowCropStart) % cellSize
+    const colPhase = (colPhaseLocal + colCropStart) % cellSize
 
     const h: number[] = []
     for (let y = rowPhase; y < cssH; y += cellSize) h.push(y)
@@ -349,7 +399,8 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
     console.log(
       `Grid detection: ${v.length}cols × ${h.length}rows = ${v.length * h.length} stitches`,
-      `(cellSize=${cellSize.toFixed(2)} from rowPeriod=${rowGrid.period.toFixed(2)} colPeriod=${colGrid.period.toFixed(2)})`,
+      `(cellSize=${cellSize.toFixed(2)}, cluster=${winner.length}/${cands.length},`,
+      `members=${winner.map((c) => `${c.axis}-${c.method}=${c.period.toFixed(2)}`).join(' ')})`,
     )
 
     setDetectedLines({ h, v })
