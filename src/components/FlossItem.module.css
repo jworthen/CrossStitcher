@@ -3,14 +3,18 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.rowWrapper:last-child {
+  border-bottom: none;
+}
+
 .row {
   display: flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 9px 16px;
   background: var(--color-surface);
   cursor: pointer;
   gap: 12px;
-  transition: background 0.1s;
+  transition: background 0.15s;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -26,18 +30,23 @@
 .swatch {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: 12px;
   flex-shrink: 0;
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.2),
+    0 2px 6px rgba(60, 40, 80, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+    inset 0 -1px 0 rgba(0, 0, 0, 0.10);
+  transition: transform 0.25s var(--ease-bounce);
+}
+
+.row:active .swatch {
+  transform: scale(0.93) rotate(-3deg);
 }
 
 .swatchLight {
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.1),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(60, 40, 80, 0.10),
+    inset 0 0 0 1px rgba(60, 40, 80, 0.10),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
@@ -66,17 +75,22 @@
 }
 
 .badge {
-  width: 32px;
-  height: 32px;
-  border-radius: 9999px;
-  display: flex;
+  min-width: 36px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 700;
   flex-shrink: 0;
   line-height: 1;
-  transition: background-color 0.25s ease, color 0.2s ease;
+  transition: background-color 0.25s ease, color 0.2s ease, transform 0.25s var(--ease-bounce);
+}
+
+.row:active .badge {
+  transform: scale(0.92);
 }
 
 .badgeUnowned {
@@ -97,41 +111,41 @@
 /* ── Status row tinting ──────────────────────────────── */
 
 .rowInStock {
-  background: rgba(40, 167, 69, 0.06);
+  background: rgba(74, 143, 98, 0.06);
 }
 
 .rowInStock:hover {
-  background: rgba(40, 167, 69, 0.11);
+  background: rgba(74, 143, 98, 0.11);
 }
 
 .rowInStock:active {
-  background: rgba(40, 167, 69, 0.17);
+  background: rgba(74, 143, 98, 0.16);
 }
 
 .rowLow {
-  background: rgba(196, 150, 10, 0.07);
+  background: rgba(184, 119, 11, 0.06);
 }
 
 .rowLow:hover {
-  background: rgba(196, 150, 10, 0.13);
+  background: rgba(184, 119, 11, 0.12);
 }
 
 .rowLow:active {
-  background: rgba(196, 150, 10, 0.19);
+  background: rgba(184, 119, 11, 0.18);
 }
 
 /* ── Desktop enhancements ────────────────────────────── */
 
 @media (min-width: 768px) {
   .row {
-    padding: 10px 24px;
+    padding: 11px 24px;
     gap: 16px;
   }
 
   .swatch {
     width: 44px;
     height: 44px;
-    border-radius: 10px;
+    border-radius: 14px;
   }
 
   .number {
@@ -143,28 +157,29 @@
   }
 
   .badge {
-    width: 36px;
-    height: 36px;
-    font-size: 1.0625rem;
+    min-width: 40px;
+    height: 28px;
+    font-size: 0.9375rem;
   }
 }
 
 /* ── Density variants (after media query so they always win) ── */
 
 .densityCompact {
-  padding: 4px 16px;
-  gap: 8px;
+  padding: 5px 16px;
+  gap: 10px;
 }
 
 .swatchCompact {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
 }
 
 .badgeCompact {
-  width: 24px;
-  height: 24px;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 7px;
   font-size: 0.75rem;
 }
 
@@ -176,21 +191,21 @@
 .swatchSpacious {
   width: 46px;
   height: 46px;
-  border-radius: 11px;
+  border-radius: 14px;
 }
 
 .badgeSpacious {
-  width: 40px;
-  height: 40px;
-  font-size: 1.125rem;
+  min-width: 44px;
+  height: 30px;
+  font-size: 1rem;
 }
 
 /* ── Note button + panel ─────────────────────────────── */
 
 .noteBtn {
-  width: 26px;
-  height: 26px;
-  border-radius: 9999px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
   border: none;
   background: transparent;
   color: var(--color-text-muted);
@@ -202,13 +217,15 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
-  opacity: 0.45;
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  opacity: 0.4;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, transform 0.2s var(--ease-bounce);
 }
 
 .noteBtn:hover {
   opacity: 1;
-  background: var(--color-surface-active);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  transform: scale(1.08);
 }
 
 .noteBtnHasNote {
@@ -218,7 +235,7 @@
 
 .noteBtnOpen {
   opacity: 1;
-  background: var(--color-surface-active);
+  background: var(--color-primary-soft);
   color: var(--color-primary);
 }
 
@@ -226,28 +243,29 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 16px 10px;
+  padding: 10px 16px 12px;
   background: var(--color-surface-hover);
+  border-top: 1px solid var(--color-border);
 }
 
 .noteInput {
   width: 100%;
-  padding: 7px 10px;
+  padding: 9px 12px;
   border: 1.5px solid var(--color-border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   font-size: 0.875rem;
   font-family: inherit;
   background: var(--color-surface);
   color: var(--color-text);
   outline: none;
   resize: vertical;
-  min-height: 48px;
+  min-height: 50px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .noteInput:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(50, 114, 176, 0.15);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
 }
 
 .noteActions {
@@ -256,23 +274,24 @@
 }
 
 .noteCloseBtn {
-  padding: 5px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .noteCloseBtn:hover {
   background: var(--color-surface-active);
+  border-color: var(--color-primary);
 }
 
 @media (min-width: 768px) {
   .notePanel {
-    padding: 8px 24px 10px;
+    padding: 10px 24px 12px;
   }
 }

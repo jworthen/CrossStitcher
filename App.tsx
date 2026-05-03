@@ -39,11 +39,30 @@ export default function App() {
       }}>
         <span style={{ width: 30 }} aria-hidden="true" />
         <span style={{
-          fontSize: '1.125rem',
-          fontWeight: 700,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
           color: 'var(--color-primary)',
-          letterSpacing: '-0.01em',
-        }}>Thready</span>
+        }}>
+          {/* Needle-and-thread mascot */}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <ellipse cx="6.5" cy="6.5" rx="3.2" ry="2" stroke="currentColor" strokeWidth="1.6" />
+            <circle cx="5.5" cy="6.5" r="0.7" fill="currentColor" opacity="0.7" />
+            <path d="M9 7 L20 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M19 17 L21 19 L20 20.5 L18 18.5 Z" fill="currentColor" />
+            <path d="M11 4.8 Q14 6 13 9 T15 13"
+              stroke="var(--color-accent)" strokeWidth="1.4"
+              strokeLinecap="round" fill="none" />
+          </svg>
+          <span style={{
+            fontFamily: "'Fraunces', Georgia, serif",
+            fontStyle: 'italic',
+            fontSize: '1.5rem',
+            fontWeight: 600,
+            letterSpacing: '-0.01em',
+            lineHeight: 1,
+          }}>Thready</span>
+        </span>
         <AccountButton />
       </header>
       <div style={{ flex: 1, overflowY: 'auto' }}>

@@ -3,36 +3,57 @@
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  gap: 4px;
 }
 
 .tab {
   flex: 1;
-  padding: 12px 0 14px;
   border: none;
-  border-top: 2px solid transparent;
   background: none;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.15s, color 0.15s;
-  margin-top: -1px;
+  padding: 6px 8px 8px;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-text-muted);
+  transition: background 0.15s, color 0.2s;
 }
 
 .tab:hover {
   background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  transition: background 0.2s, transform 0.25s var(--ease-bounce);
 }
 
 .label {
-  display: block;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  transition: color 0.15s;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
 }
 
 .tabActive {
-  border-top-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
-.tabActive .label {
+.tabActive .iconWrap {
+  background: var(--color-primary-soft);
+  transform: scale(1.05);
+}
+
+.tabActive:hover {
+  background: var(--color-surface-hover);
   color: var(--color-primary);
-  font-weight: 600;
 }
