@@ -5,7 +5,7 @@ import { useInventory } from '../hooks/useInventory'
 import { useColorNotes } from '../hooks/useColorNotes'
 import { usePreferredBrand } from '../hooks/usePreferredBrand'
 import { useDarkMode } from '../hooks/useDarkMode'
-import FlossItem, { Density } from '../components/FlossItem'
+import FlossItem from '../components/FlossItem'
 import ConvertModal from '../components/ConvertModal'
 import Confetti from '../components/Confetti'
 import styles from './FlossListScreen.module.css'
@@ -13,11 +13,6 @@ import styles from './FlossListScreen.module.css'
 type FilterTab = 'all' | 'in_stock' | 'low' | 'unowned'
 type SortMode = 'number' | 'color'
 
-const DENSITY_OPTIONS: { key: Density; label: string }[] = [
-  { key: 'compact', label: 'S' },
-  { key: 'comfortable', label: 'M' },
-  { key: 'spacious', label: 'L' },
-]
 type ListRow = { type: 'header'; label: string } | { type: 'color'; color: BrandColor }
 
 const TABS: { key: FilterTab; label: string }[] = [
@@ -100,9 +95,6 @@ export default function FlossListScreen() {
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
   const [sortMode, setSortMode] = useState<SortMode>('number')
-  const [density, setDensity] = useState<Density>(() =>
-    (localStorage.getItem('thready-density') as Density) || 'comfortable'
-  )
   const [showActions, setShowActions] = useState(false)
   const [resetPending, setResetPending] = useState(false)
   const [showConvert, setShowConvert] = useState(false)
@@ -111,11 +103,6 @@ export default function FlossListScreen() {
   // Active brand's catalog. Switching the brand selector flips this entirely —
   // each brand has its own browseable color list and its own inventory.
   const colors = useMemo(() => catalogFor(brand), [brand])
-
-  const handleDensity = (d: Density) => {
-    setDensity(d)
-    localStorage.setItem('thready-density', d)
-  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -315,19 +302,6 @@ export default function FlossListScreen() {
             </button>
           </div>
 
-          <div className={styles.densityToggle}>
-            {DENSITY_OPTIONS.map(({ key, label }) => (
-              <button
-                key={key}
-                className={`${styles.densityBtn} ${density === key ? styles.densityBtnActive : ''}`}
-                onClick={() => handleDensity(key)}
-                aria-label={key}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
           <select
             className={styles.brandSelect}
             value={brand}
@@ -460,7 +434,6 @@ export default function FlossListScreen() {
                   color={row.color}
                   status={getStatus(brand, row.color.number)}
                   onPress={() => cycleStatus(brand, row.color.number)}
-                  density={density}
                   note={getNote(brand, row.color.number)}
                   onNoteChange={(n) => setNote(brand, row.color.number, n)}
                 />

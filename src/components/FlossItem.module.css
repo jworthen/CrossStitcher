@@ -163,43 +163,6 @@
   }
 }
 
-/* ── Density variants (after media query so they always win) ── */
-
-.densityCompact {
-  padding: 5px 16px;
-  gap: 10px;
-}
-
-.swatchCompact {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-}
-
-.badgeCompact {
-  min-width: 28px;
-  height: 22px;
-  padding: 0 7px;
-  font-size: 0.75rem;
-}
-
-.densitySpacious {
-  padding: 14px 16px;
-  gap: 16px;
-}
-
-.swatchSpacious {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-}
-
-.badgeSpacious {
-  min-width: 44px;
-  height: 30px;
-  font-size: 1rem;
-}
-
 /* ── Note button + panel ─────────────────────────────── */
 
 .noteBtn {

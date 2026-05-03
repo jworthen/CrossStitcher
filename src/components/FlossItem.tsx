@@ -3,13 +3,10 @@ import { FlossStatus } from '../data/dmcColors'
 import { BrandColor } from '../data/brands'
 import styles from './FlossItem.module.css'
 
-export type Density = 'compact' | 'comfortable' | 'spacious'
-
 interface Props {
   color: BrandColor
   status: FlossStatus
   onPress: () => void
-  density?: Density
   note: string
   onNoteChange: (note: string) => void
 }
@@ -27,12 +24,9 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 220
 }
 
-export default function FlossItem({ color, status, onPress, density = 'comfortable', note, onNoteChange }: Props) {
+export default function FlossItem({ color, status, onPress, note, onNoteChange }: Props) {
   const config = STATUS_CONFIG[status]
   const light = isLightColor(color.hex)
-  const rowDensity = density === 'compact' ? styles.densityCompact : density === 'spacious' ? styles.densitySpacious : ''
-  const swatchDensity = density === 'compact' ? styles.swatchCompact : density === 'spacious' ? styles.swatchSpacious : ''
-  const badgeDensity = density === 'compact' ? styles.badgeCompact : density === 'spacious' ? styles.badgeSpacious : ''
 
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState(note)
@@ -57,9 +51,9 @@ export default function FlossItem({ color, status, onPress, density = 'comfortab
 
   return (
     <li className={styles.rowWrapper}>
-      <div className={`${styles.row} ${config.rowClassName} ${rowDensity}`} onClick={onPress}>
+      <div className={`${styles.row} ${config.rowClassName}`} onClick={onPress}>
         <div
-          className={`${styles.swatch} ${light ? styles.swatchLight : ''} ${swatchDensity}`}
+          className={`${styles.swatch} ${light ? styles.swatchLight : ''}`}
           style={{ backgroundColor: color.hex }}
           aria-hidden="true"
         />
@@ -76,7 +70,7 @@ export default function FlossItem({ color, status, onPress, density = 'comfortab
           {hasNote ? '✎' : '+'}
         </button>
         <div
-          className={`${styles.badge} ${config.className} ${badgeDensity}`}
+          className={`${styles.badge} ${config.className}`}
           role="img"
           aria-label={config.ariaLabel}
         >

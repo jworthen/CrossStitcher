@@ -25,7 +25,6 @@
 - [x] Color-coded row tinting based on status (subtle background wash)
 - [x] Richer swatch styling (subtle depth, silk/thread texture)
 - [x] Skeleton loading / empty state illustrations
-- [x] Compact / Comfortable / Spacious density toggle
 - [x] Header gradient or decorative pattern
 
 ## Phase 4 — Marketing & Landing Page

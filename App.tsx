@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import FlossListScreen from './src/screens/FlossListScreen'
 import PatternLibraryScreen from './src/screens/PatternLibraryScreen'
 import PdfViewerScreen from './src/screens/PdfViewerScreen'
@@ -10,9 +10,20 @@ interface ViewerState {
   patternName: string
 }
 
+const SCREEN_KEY = 'thready-active-screen'
+
+function loadInitialScreen(): AppScreen {
+  const saved = localStorage.getItem(SCREEN_KEY)
+  return saved === 'patterns' ? 'patterns' : 'inventory'
+}
+
 export default function App() {
-  const [screen, setScreen] = useState<AppScreen>('inventory')
+  const [screen, setScreen] = useState<AppScreen>(loadInitialScreen)
   const [viewer, setViewer] = useState<ViewerState | null>(null)
+
+  useEffect(() => {
+    localStorage.setItem(SCREEN_KEY, screen)
+  }, [screen])
 
   if (viewer) {
     return (
