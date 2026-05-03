@@ -396,27 +396,28 @@ export default function FlossListScreen() {
       <main className={styles.main}>
         {filtered.length === 0 ? (
           <div className={styles.emptyState}>
-            <svg width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true" className={styles.emptyIllustration}>
-              <circle cx="40" cy="45" r="28" stroke="currentColor" strokeWidth="3.5" opacity="0.18"/>
-              <circle cx="40" cy="45" r="22" stroke="currentColor" strokeWidth="1" strokeDasharray="3 4" opacity="0.13"/>
-              <rect x="34" y="12" width="12" height="7" rx="3" fill="currentColor" opacity="0.18"/>
-              <line x1="40" y1="15" x2="40" y2="19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.28"/>
-              <line x1="20" y1="37" x2="60" y2="37" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
-              <line x1="20" y1="45" x2="60" y2="45" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
-              <line x1="20" y1="53" x2="60" y2="53" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
-              <line x1="28" y1="29" x2="28" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
-              <line x1="36" y1="29" x2="36" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
-              <line x1="44" y1="29" x2="44" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
-              <line x1="52" y1="29" x2="52" y2="61" stroke="currentColor" strokeWidth="0.75" opacity="0.14"/>
-              <path d="M32 37 L36 41 M36 37 L32 41" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.22"/>
-              <path d="M44 45 L48 49 M48 45 L44 49" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.22"/>
-              <path d="M32 53 L36 57 M36 53 L32 57" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.22"/>
+            {/* Smiling spool with thread-trail */}
+            <svg width="92" height="92" viewBox="0 0 92 92" fill="none" aria-hidden="true" className={styles.emptyIllustration}>
+              <ellipse cx="46" cy="22" rx="22" ry="6" fill="currentColor" opacity="0.18"/>
+              <rect x="24" y="22" width="44" height="44" rx="4" fill="currentColor" opacity="0.10"/>
+              <ellipse cx="46" cy="66" rx="22" ry="6" fill="currentColor" opacity="0.18"/>
+              <path d="M28 32 H64 M28 40 H64 M28 48 H64 M28 56 H64"
+                stroke="currentColor" strokeWidth="0.8" opacity="0.30" strokeLinecap="round"/>
+              {/* Thread trailing off bottom-right with a little curl */}
+              <path d="M64 60 Q78 64 80 76 Q80 84 72 84"
+                stroke="var(--color-accent)" strokeWidth="2"
+                strokeLinecap="round" fill="none"/>
+              {/* Eyes + smile */}
+              <circle cx="40" cy="42" r="1.6" fill="currentColor" opacity="0.7"/>
+              <circle cx="52" cy="42" r="1.6" fill="currentColor" opacity="0.7"/>
+              <path d="M40 50 Q46 54 52 50" stroke="currentColor"
+                strokeWidth="1.6" strokeLinecap="round" fill="none" opacity="0.7"/>
             </svg>
             <p className={styles.emptyTitle}>
-              {search ? `No results for "${search}"` : 'Nothing here'}
+              {search ? `Nothing for "${search}"` : 'Nothing here yet'}
             </p>
             <p className={styles.emptySubtitle}>
-              {search ? 'Try a different number or name' : 'No colors match this filter'}
+              {search ? 'Try a different number, name, or brand code.' : 'No colors match this filter.'}
             </p>
             {search && (
               <button className={styles.emptyClearBtn} onClick={() => setSearch('')}>

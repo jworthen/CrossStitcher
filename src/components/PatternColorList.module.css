@@ -18,7 +18,7 @@
 .addInput {
   padding: 7px 10px;
   border: 1.5px solid var(--color-border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   font-size: 0.875rem;
   background: var(--color-bg);
   color: var(--color-text);
@@ -39,21 +39,22 @@
 }
 
 .addBtn {
-  padding: 7px 14px;
+  padding: 8px 16px;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--radius-pill);
   background: var(--color-primary);
   color: #fff;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, transform 0.2s var(--ease-bounce);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .addBtn:hover {
   background: var(--color-primary-dark);
+  transform: translateY(-1px);
 }
 
 .addBtn:disabled {
@@ -112,9 +113,9 @@
 }
 
 .markBoughtBtn {
-  padding: 6px 12px;
+  padding: 7px 14px;
   border: 1.5px solid var(--color-yellow);
-  border-radius: 7px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-yellow);
   font-size: 0.8125rem;
@@ -122,12 +123,13 @@
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.2s var(--ease-bounce);
 }
 
 .markBoughtBtn:hover {
   background: var(--color-yellow);
-  color: var(--color-yellow-bg);
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 /* ── Empty state ─────────────────────────────────────── */
@@ -205,19 +207,24 @@
 /* ── Inventory badge (Phase 6) ───────────────────────── */
 
 .invBadge {
-  width: 28px;
-  height: 28px;
-  border-radius: 9999px;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
   border: none;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.2s, color 0.2s, transform 0.2s var(--ease-bounce);
+}
+
+.invBadge:hover {
+  transform: scale(1.05);
 }
 
 .invBadgeUnowned {
@@ -265,7 +272,7 @@
 .swatch {
   width: 30px;
   height: 30px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
@@ -386,21 +393,22 @@
 
 .shareBtn {
   flex: 1;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 7px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, transform 0.2s var(--ease-bounce);
 }
 
 .shareBtn:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-primary-soft);
   border-color: var(--color-primary);
   color: var(--color-primary);
+  transform: translateY(-1px);
 }
 
 .shareFeedback {
