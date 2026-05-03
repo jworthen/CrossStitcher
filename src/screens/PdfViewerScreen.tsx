@@ -223,19 +223,24 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
   // Scan the rendered canvas to find where the cross-stitch grid lines are.
   //
-  // For each axis we compute two 1D signals over the central 70% of the page:
-  //   • brightness — mean luminance per CSS row/col (peaks DARK at grid lines)
-  //   • edges      — |brightness[i] - brightness[i-1]| (peaks HIGH at edges)
+  // Algorithm: directional 2D edge detection + autocorrelation.
   //
-  // Brightness alone fails on dense colored charts, where heavy symbols dominate
-  // the per-row average and the actual cell-period signal is buried. Edge peaks
-  // catch grid-line transitions regardless of cell content.
-  //
-  // We collect up to four candidate periods (row × {bright, edge}, col × same).
-  // Cells are square, so the actual cell period should appear in at least two
-  // candidates; we cluster within ±6% and use the median of the largest cluster.
-  // This is robust to single-axis or single-method failures (one detector
-  // grabbing a 2×-cell harmonic, etc.).
+  //   1. Build two edge maps from canvas pixels:
+  //      - vertical-direction edges  |Δlum_y|  fire on horizontal grid lines
+  //      - horizontal-direction edges |Δlum_x| fire on vertical grid lines
+  //   2. Project each edge map onto a 1D profile:
+  //      - row profile = sum of vertical edges across each CSS row
+  //      - col profile = sum of horizontal edges down each CSS column
+  //      Symbols inside cells produce mixed-direction edges that don't align
+  //      coherently — they smear out under projection. Grid LINES, being
+  //      fully horizontal or fully vertical, project to crisp 1D peaks.
+  //   3. Run autocorrelation on each 1D profile. The autocorrelation peaks
+  //      at the cell period; sub-period harmonics (P/2, P/3) are
+  //      genuinely lower because half the spikes don't align.
+  //   4. Pick the smallest local-max lag whose autocorr exceeds 0.30, with
+  //      sub-pixel parabolic refinement at the peak.
+  //   5. If both axes give a peak, average. If only one, use it (cells are
+  //      square). If neither, give up — user can manually calibrate.
   const detectGridLines = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || canvas.width === 0 || canvas.height === 0) return
@@ -249,146 +254,131 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
     const data = ctx.getImageData(0, 0, CW, CH).data
 
-    const rowAcc = new Float64Array(cssH)
-    const colAcc = new Float64Array(cssW)
+    // Single pass: per-pixel luminance + accumulators for both directional
+    // edge profiles. prevLumRow holds the previous canvas row's luminance
+    // so we can compute |Δ_y| in flight.
+    const prevLumRow = new Float64Array(CW)
+    const rowEdgeProfile = new Float64Array(cssH)  // sum of vert edges per CSS row
+    const colEdgeProfile = new Float64Array(cssW)  // sum of horz edges per CSS col
+
     for (let y = 0; y < CH; y++) {
       const cy = (y / RENDER_SCALE) | 0
       const base = y * CW * 4
+      let prevLumPx = 0
       for (let x = 0; x < CW; x++) {
         const i = base + x * 4
         const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
-        rowAcc[cy] += lum
-        colAcc[(x / RENDER_SCALE) | 0] += lum
+        if (y > 0) rowEdgeProfile[cy] += Math.abs(lum - prevLumRow[x])
+        if (x > 0) colEdgeProfile[(x / RENDER_SCALE) | 0] += Math.abs(lum - prevLumPx)
+        prevLumRow[x] = lum
+        prevLumPx = lum
       }
     }
 
-    const rowNorm = CW * RENDER_SCALE
-    const colNorm = CH * RENDER_SCALE
-    const rowBright = new Float64Array(cssH)
-    const colBright = new Float64Array(cssW)
-    for (let i = 0; i < cssH; i++) rowBright[i] = rowAcc[i] / rowNorm
-    for (let i = 0; i < cssW; i++) colBright[i] = colAcc[i] / colNorm
-
-    // Edge profiles: |Δ| between adjacent CSS rows / cols. First entry is 0.
-    const rowEdge = new Float64Array(cssH)
-    const colEdge = new Float64Array(cssW)
-    for (let i = 1; i < cssH; i++) rowEdge[i] = Math.abs(rowBright[i] - rowBright[i - 1])
-    for (let i = 1; i < cssW; i++) colEdge[i] = Math.abs(colBright[i] - colBright[i - 1])
-
-    const THRESHOLD = 0.65
-    const SUB_RATIO = 0.6  // sub-period must score ≥ 60% of parent — was an
-                           // absolute 0.15 which let noise sub-harmonics win.
-
-    // Find the smallest period at which the profile has a phase scoring above
-    // THRESHOLD (z-score against profile mean/std). `prefer = 'dark'` looks
-    // for dark phases (brightness profile); `prefer = 'peak'` looks for the
-    // brightest phases (edge profile).
-    type Period = { period: number; phase: number; score: number }
-    const findPeriod = (
-      profile: Float64Array, minP: number, maxP: number, prefer: 'dark' | 'peak',
-    ): Period | null => {
+    // Returns autocorrelation values R(lag) for lag in [0, maxLag], normalised
+    // to variance so peaks live in roughly [-1, 1].
+    const autocorrelate = (profile: Float64Array, maxLag: number): Float64Array => {
       const N = profile.length
-      if (N < minP * 3) return null
       let mean = 0
       for (let i = 0; i < N; i++) mean += profile[i]
       mean /= N
-      let variance = 0
-      for (let i = 0; i < N; i++) variance += (profile[i] - mean) ** 2
-      const std = Math.sqrt(variance / N)
-      if (std < 0.05) return null  // signal too flat to detect
-
-      const lerp = (pos: number): number => {
-        const lo = pos | 0
-        const hi = lo + 1
-        return hi < N ? profile[lo] + (pos - lo) * (profile[hi] - profile[lo]) : profile[lo]
+      const centered = new Float64Array(N)
+      let sumSq = 0
+      for (let i = 0; i < N; i++) {
+        centered[i] = profile[i] - mean
+        sumSq += centered[i] * centered[i]
       }
-
-      const evalPeriod = (P: number) => {
-        let bestScore = -Infinity, bestPhase = -1
-        for (let ps = 0; ps * 0.5 < P; ps++) {
-          const phase = ps * 0.5
-          let sum = 0, count = 0
-          for (let pos = phase; pos < N; pos += P) { sum += lerp(pos); count++ }
-          if (count < 3) continue
-          const avg = sum / count
-          const score = prefer === 'dark' ? (mean - avg) / std : (avg - mean) / std
-          if (score > bestScore) { bestScore = score; bestPhase = phase }
-        }
-        return { score: bestScore, phase: bestPhase }
+      const variance = sumSq / N
+      const out = new Float64Array(maxLag + 1)
+      if (variance === 0) return out
+      for (let lag = 1; lag <= maxLag; lag++) {
+        if (lag >= N) break
+        let s = 0
+        const limit = N - lag
+        for (let i = 0; i < limit; i++) s += centered[i] * centered[i + lag]
+        out[lag] = s / limit / variance
       }
+      return out
+    }
 
-      const clampedMax = Math.min(maxP, N / 3)
-      for (let s = 0; minP + s * 0.25 <= clampedMax; s++) {
-        const P = minP + s * 0.25
-        const { score: bestScore, phase: bestPhase } = evalPeriod(P)
-        if (bestScore > THRESHOLD && bestPhase >= 0) {
-          // Tighter harmonic guard: a sub-period only wins if it scores at least
-          // 60% of the parent. Loose 0.15-absolute thresholds let pixel-grid
-          // anti-aliasing spikes (P/2 etc.) take over the detection.
-          const subThreshold = bestScore * SUB_RATIO
-          for (let div = 2; div <= 10; div++) {
-            const subP = P / div
-            if (subP < minP) break
-            const sub = evalPeriod(subP)
-            if (sub.score > subThreshold && sub.phase >= 0) {
-              return { period: subP, phase: sub.phase, score: sub.score }
-            }
+    // Smallest local-max lag with autocorr > THRESHOLD, with parabolic
+    // sub-pixel refinement around the peak. Returns null if no clear peak
+    // — the chart's grid lines aren't strong enough to detect.
+    const AUTOCORR_THRESHOLD = 0.30
+    const findPeriodAutocorr = (
+      profile: Float64Array, minP: number, maxP: number,
+    ): { period: number; peak: number } | null => {
+      const maxLag = Math.min(maxP, profile.length / 3) | 0
+      const minLag = (minP | 0)
+      if (maxLag < minLag + 2) return null
+      const ac = autocorrelate(profile, maxLag)
+      for (let lag = Math.max(2, minLag); lag < maxLag; lag++) {
+        const v = ac[lag]
+        if (v > ac[lag - 1] && v > ac[lag + 1] && v > AUTOCORR_THRESHOLD) {
+          // Parabolic refinement: fit y = a(x-x0)^2 + b through three points
+          // (lag-1, ac[lag-1]), (lag, ac[lag]), (lag+1, ac[lag+1]). The peak
+          // lies at x0 = lag + 0.5(y0 - y2)/(y0 - 2*y1 + y2).
+          const y0 = ac[lag - 1], y1 = v, y2 = ac[lag + 1]
+          const denom = y0 - 2 * y1 + y2
+          let period = lag
+          if (denom < 0) {
+            const offset = 0.5 * (y0 - y2) / denom
+            if (Math.abs(offset) < 1.0) period = lag + offset
           }
-          return { period: P, phase: bestPhase, score: bestScore }
+          return { period, peak: v }
         }
       }
       return null
     }
 
+    // Phase scan with a known cell size: try every half-pixel phase and pick
+    // whichever places the most edge mass on the sampled positions. Used
+    // even on the axis whose autocorr peak was weak — cells are square, so
+    // we trust the period from the strong axis and find phase here.
+    const findPhase = (profile: Float64Array, period: number): number => {
+      const N = profile.length
+      let mean = 0
+      for (let i = 0; i < N; i++) mean += profile[i]
+      mean /= N
+      let bestScore = -Infinity, bestPhase = 0
+      for (let ps = 0; ps * 0.5 < period; ps++) {
+        const phase = ps * 0.5
+        let sum = 0, count = 0
+        for (let pos = phase; pos < N; pos += period) {
+          const lo = pos | 0
+          const hi = lo + 1
+          const v = hi < N ? profile[lo] + (pos - lo) * (profile[hi] - profile[lo]) : profile[lo]
+          sum += v
+          count++
+        }
+        if (count < 3) continue
+        const score = sum / count - mean
+        if (score > bestScore) { bestScore = score; bestPhase = phase }
+      }
+      return bestPhase
+    }
+
+    // Analyse the central 70% to skip headers, footers, and legend areas.
     const rowCropStart = (cssH * 0.15) | 0
     const colCropStart = (cssW * 0.15) | 0
-    const rowSubBright = rowBright.subarray(rowCropStart, (cssH * 0.85) | 0)
-    const rowSubEdge = rowEdge.subarray(rowCropStart, (cssH * 0.85) | 0)
-    const colSubBright = colBright.subarray(colCropStart, (cssW * 0.85) | 0)
-    const colSubEdge = colEdge.subarray(colCropStart, (cssW * 0.85) | 0)
+    const rowSub = rowEdgeProfile.subarray(rowCropStart, (cssH * 0.85) | 0)
+    const colSub = colEdgeProfile.subarray(colCropStart, (cssW * 0.85) | 0)
     const minP = 3
-    const rowMaxP = Math.min(120, rowSubBright.length / 3)
-    const colMaxP = Math.min(120, colSubBright.length / 3)
+    const rowMaxP = Math.min(120, rowSub.length / 3)
+    const colMaxP = Math.min(120, colSub.length / 3)
 
-    type Candidate = { axis: 'row' | 'col'; method: 'bright' | 'edge' } & Period
-    const cands: Candidate[] = []
-    const push = (axis: 'row' | 'col', method: 'bright' | 'edge', p: Period | null) => {
-      if (p) cands.push({ axis, method, ...p })
-    }
-    push('row', 'bright', findPeriod(rowSubBright, minP, rowMaxP, 'dark'))
-    push('row', 'edge', findPeriod(rowSubEdge, minP, rowMaxP, 'peak'))
-    push('col', 'bright', findPeriod(colSubBright, minP, colMaxP, 'dark'))
-    push('col', 'edge', findPeriod(colSubEdge, minP, colMaxP, 'peak'))
+    const rowResult = findPeriodAutocorr(rowSub, minP, rowMaxP)
+    const colResult = findPeriodAutocorr(colSub, minP, colMaxP)
+    if (!rowResult && !colResult) { setDetectedLines(null); return }
 
-    if (cands.length === 0) { setDetectedLines(null); return }
+    // Cells are square. Average when both axes detected; fall back to the
+    // single working axis otherwise.
+    const cellSize =
+      rowResult && colResult ? (rowResult.period + colResult.period) / 2
+      : (rowResult ?? colResult)!.period
 
-    // Cluster candidates by period (within ±6%). The actual cell period is the
-    // one most candidates agree on, since cells are square so row=col.
-    const CLUSTER_TOL = 0.06
-    const clusters: Candidate[][] = []
-    for (const c of cands) {
-      let placed = false
-      for (const g of clusters) {
-        const avg = g.reduce((s, x) => s + x.period, 0) / g.length
-        if (Math.abs(c.period - avg) / avg <= CLUSTER_TOL) { g.push(c); placed = true; break }
-      }
-      if (!placed) clusters.push([c])
-    }
-    // Prefer larger cluster; tie-break by total score.
-    clusters.sort((a, b) =>
-      b.length - a.length || b.reduce((s, c) => s + c.score, 0) - a.reduce((s, c) => s + c.score, 0)
-    )
-    const winner = clusters[0]
-
-    // Median period of the winning cluster (cells are square — same on both axes).
-    const sortedPeriods = winner.map((c) => c.period).sort((a, b) => a - b)
-    const cellSize = sortedPeriods[Math.floor(sortedPeriods.length / 2)]
-
-    // Phase: use the highest-scoring row and col candidates from the winner.
-    const rowWinners = winner.filter((c) => c.axis === 'row').sort((a, b) => b.score - a.score)
-    const colWinners = winner.filter((c) => c.axis === 'col').sort((a, b) => b.score - a.score)
-    const rowPhaseLocal = rowWinners[0]?.phase ?? colWinners[0]?.phase ?? 0
-    const colPhaseLocal = colWinners[0]?.phase ?? rowWinners[0]?.phase ?? 0
+    const rowPhaseLocal = findPhase(rowSub, cellSize)
+    const colPhaseLocal = findPhase(colSub, cellSize)
     const rowPhase = (rowPhaseLocal + rowCropStart) % cellSize
     const colPhase = (colPhaseLocal + colCropStart) % cellSize
 
@@ -399,8 +389,9 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
     console.log(
       `Grid detection: ${v.length}cols × ${h.length}rows = ${v.length * h.length} stitches`,
-      `(cellSize=${cellSize.toFixed(2)}, cluster=${winner.length}/${cands.length},`,
-      `members=${winner.map((c) => `${c.axis}-${c.method}=${c.period.toFixed(2)}`).join(' ')})`,
+      `(cellSize=${cellSize.toFixed(2)},`,
+      `row=${rowResult ? `${rowResult.period.toFixed(2)}@${rowResult.peak.toFixed(2)}` : 'none'},`,
+      `col=${colResult ? `${colResult.period.toFixed(2)}@${colResult.peak.toFixed(2)}` : 'none'})`,
     )
 
     setDetectedLines({ h, v })
