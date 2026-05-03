@@ -41,7 +41,10 @@ export interface PatternMeta {
 }
 
 interface StoredPattern extends PatternMeta {
-  file: ArrayBuffer
+  // Undefined when the record is a "stub" written by the cloud subscription
+  // for a pattern uploaded from another device. The PDF is fetched from
+  // Firebase Storage on first open and the stub is promoted in place.
+  file?: ArrayBuffer
   gridConfig?: GridConfig                        // legacy — migrated to gridConfigs on read
   gridConfigs?: Record<number, GridConfig>       // per-page grid configs
   progress?: Record<string, string>
@@ -149,10 +152,24 @@ export async function loadPatternData(id: string): Promise<{
   const localGrid: Record<number, GridConfig> = { ...(record?.gridConfigs ?? {}) }
   if (record?.gridConfig && !localGrid[1]) localGrid[1] = record.gridConfig
 
-  // If we have the IDB record (i.e. file is here), use it as primary.
+  // IDB record exists. If it's a full record the file is here; if it's a
+  // stub written by the cloud subscription, fetch the PDF from Storage now
+  // and promote the stub to a full record so future opens are local-fast.
   if (record) {
+    let file: ArrayBuffer | null = record.file ?? null
+    if (!file) {
+      const uid = currentUid()
+      if (uid) {
+        try { file = await downloadPatternPdf(uid, id) }
+        catch (e) { console.error('downloadPatternPdf:', e) }
+        if (file) {
+          try { await idbPut(db, { ...record, file, fileSize: file.byteLength }) }
+          catch { /* quota — ignore */ }
+        }
+      }
+    }
     return {
-      file: record.file,
+      file,
       gridConfigs: localGrid,
       progress: record.progress,
       patternColors: record.patternColors,
@@ -284,12 +301,22 @@ export function usePatterns() {
   const [patterns, setPatterns] = useState<PatternMeta[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Initial load from IDB
+  // Initial load from IDB. Functional setState so a cloud snapshot that
+  // already populated state (Firestore's local cache fires faster than
+  // IDB.getAll) isn't clobbered by an empty/partial local IDB result.
   useEffect(() => {
     openDB()
       .then((db) => idbGetAll(db))
       .then((all) => {
-        setPatterns(all.map(toMeta).sort((a, b) => b.dateAdded - a.dateAdded))
+        setPatterns((prev) => {
+          const localMetas = all.map(toMeta)
+          const localIds = new Set(localMetas.map((p) => p.id))
+          const merged = [...localMetas]
+          for (const p of prev) {
+            if (!localIds.has(p.id)) merged.push(p)
+          }
+          return merged.sort((a, b) => b.dateAdded - a.dateAdded)
+        })
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -298,11 +325,34 @@ export function usePatterns() {
   // Subscribe to cloud index when signed in. First snapshot merges cloud +
   // local-on-top so any unsynced local-only patterns survive sign-in. Later
   // snapshots from other devices replace state directly.
+  //
+  // Each snapshot also mirrors the cloud index into local IDB (writing stubs
+  // for cloud-only patterns and syncing metadata edits from other devices).
+  // syncIndexToCloud derives the cloud index from local IDB, so without this
+  // mirror the laptop would silently drop the phone's uploads from cloud the
+  // next time anything was added/edited on the laptop.
   useEffect(() => {
     if (!user) return
     let firstSnapshot = true
-    return subscribePatternsList(user.uid, (cloudPatterns, hasPendingWrites) => {
+    return subscribePatternsList(user.uid, async (cloudPatterns, hasPendingWrites) => {
       if (hasPendingWrites) return
+
+      try {
+        const idb = await openDB()
+        const all = await idbGetAll(idb)
+        const localById = new Map(all.map((p) => [p.id, p]))
+        for (const cp of cloudPatterns) {
+          const existing = localById.get(cp.id)
+          const next: StoredPattern = existing
+            ? { ...existing, name: cp.name, dateAdded: cp.dateAdded, fileSize: cp.fileSize }
+            : { id: cp.id, name: cp.name, dateAdded: cp.dateAdded, fileSize: cp.fileSize }
+          if (cp.designer) next.designer = cp.designer; else delete next.designer
+          if (cp.fabric) next.fabric = cp.fabric; else delete next.fabric
+          if (cp.notes) next.notes = cp.notes; else delete next.notes
+          await idbPut(idb, next).catch((e) => console.error('cloud→IDB put:', e))
+        }
+      } catch (e) { console.error('cloud-IDB sync:', e) }
+
       if (firstSnapshot) {
         firstSnapshot = false
         setPatterns((local) => {
