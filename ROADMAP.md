@@ -121,3 +121,63 @@ For physical/paper patterns and loose skeins — cases where there's no PDF to e
 - [ ] **Barcode scanning** — point camera at a floss skein's barcode to add it to inventory instantly
 - [ ] **AI legend scanning** — photograph a paper pattern's color key; AI extracts DMC numbers and cross-references against your stash
 - [ ] **Shopping list from legend scan** — auto-generate what to buy based on a scanned legend vs. current inventory
+
+---
+
+# Next Roadmap
+
+A restructured forward plan. Phase numbers below are independent of the historical phases above.
+
+## Phase 0 — Foundation
+Stuff that has to happen before features, because changing it later is painful.
+
+- [ ] **Schema migration: skein quantities.** Inventory state goes from `Missing | InStock | Low` to `{ status, count }` where count is an integer ≥ 0. Status becomes derived (`count===0` → Missing, `count>0` → InStock, `count===1` or user-flagged → Low). Migrate existing data: InStock → count=1, Low → count=1+flag, Missing → count=0. Do this now because every later inventory feature (specialty DMC, photo matcher, multi-project shopping list) reads this shape.
+- [ ] **PWA installability.** Web app manifest, service worker, offline shell, "Add to Home Screen" prompt. Cache the app shell + DMC catalog + Firebase SDK; let IndexedDB do its thing for user data. This unlocks the "install on iPhone" story and makes offline behavior feel deliberate instead of accidental.
+- [ ] **Pattern data model: per-color skein needs.** Confirm Scan PDF actually captures skein counts per color (you said it does — verify on 5–10 real PDFs). Readiness banner should compare needed skeins against owned skeins, not just presence.
+- [ ] **Project status field on patterns.** Add `status: "planning" | "in_progress" | "completed" | "on_hold"` and `started_at`, `completed_at` timestamps to the pattern record. Don't expose UI yet — just reserve the fields so Phase 4 doesn't need a migration.
+
+## Phase 1 — Pattern-side parity (the big one)
+This is where you close the Pattern Keeper gap. Order matters here because each feature builds on the last.
+
+- [ ] **Symbol highlighting / color filter.** Tap a color in the legend → every cell with that symbol gets a highlight overlay on the chart. This is the single most-praised Pattern Keeper feature. Implementation: you already sample symbols per cell for color matching; reuse that index to filter the overlay layer.
+- [ ] **Swipe-to-mark stitches.** Drag across cells to mark a run; support horizontal, vertical, and diagonal. Add a 10×10 block-mark gesture (long-press a corner, drag to opposite corner). Big quality-of-life win that multiplies the value of everything you've already built.
+- [ ] **Stitch undo history.** A short undo stack (last 20–50 actions) per pattern session. Cheap to build, prevents the "I just tapped 30 cells with the wrong filter on" disaster.
+- [ ] **Daily / session stitch counts.** Track `stitches_marked_today` and `session_started_at`. Show a small "127 stitches today" badge. This is a documented motivator across Pattern Keeper reviews — small feature, outsized engagement impact.
+- [ ] **Continuous chart view across page breaks.** Hardest item in this phase. Stitch multi-page PDFs into one virtual canvas so the user can pan across page boundaries seamlessly. Save for last in Phase 1 because it touches grid calibration, rendering, and progress storage all at once.
+
+## Phase 2 — Inventory depth
+Now that skein counts exist in the schema, fill them out and broaden coverage.
+
+- [ ] **Skein quantity UI.** +/− buttons on each color row, "I have 3" instead of just a checkmark. Threshold for "Low" becomes user-configurable (default: ≤1 skein).
+- [ ] **Specialty DMC lines.** Étoile, Light Effects (metallics), Coloris, Color Variations, Pearl Cotton 3/5/8/12. Treat as separate sub-catalogs under DMC with their own toggle, like StitchStash does. Each gets its own inventory namespace.
+- [ ] **Wider brand catalogs.** Expand from 7 brands toward Threadalog's 30+. Prioritize by user demand: Sullivans, CXC, Classic Colorworks, Rainbow Gallery, Kreinik are the most-requested in stitcher communities. Hand-dyed brands (Weeks, Gentle Art) stay sparse — that's a data problem, not a code problem.
+- [ ] **Lower-friction "request a color" flow.** The GitHub issue link works for developers; for everyone else, an in-app form that posts to your issue tracker via a serverless function is much friendlier.
+
+## Phase 3 — Specialty stitches & advanced marking
+Deeper pattern features that need the Phase 1 foundation.
+
+- [ ] **Fractional stitches.** Quarter, half, three-quarter. Each cell becomes a 2×2 sub-grid with independent state. Pattern Keeper just added tentative support; you can do it cleaner if you start now.
+- [ ] **Backstitch.** Lines between cell corners, not fills. Genuinely open territory — neither Pattern Keeper nor MarkUp does this well yet. Worth doing right: store as edges in a graph keyed to grid coordinates.
+- [ ] **French knots and other specialty marks.** Once backstitch infrastructure exists, these are mostly UI variants.
+- [ ] **Parking markers.** Mark which corner of a square a thread is parked in. Niche but the full-coverage HAED crowd cares deeply.
+- [ ] **"Mark to unpick" state.** A separate marking state for "I made a mistake here, fix later." Pattern Keeper added this recently; small change, frequently requested.
+
+## Phase 4 — Project management
+Turning the app from a tool into a workflow.
+
+- [ ] **Project status UI.** Surface the schema fields from Phase 0. Filter patterns by Planning / In Progress / Completed / On Hold. Adds a "what should I work on next" answer.
+- [ ] **Project journal / progress photos.** Attach photos to a pattern over time, with optional date and notes. Stored in IndexedDB locally, synced via Firebase Storage when signed in. Stitchers love this and it costs almost nothing to build.
+- [ ] **Aggregated shopping list across projects.** "I'm starting these 3 patterns — combined, what do I need to buy?" Reads from each pattern's color list, subtracts owned skeins, dedupes. Natural extension of your existing per-pattern shopping list.
+- [ ] **Multiple WIPs per pattern.** Some people stitch the same chart twice. Lower priority but the schema should allow it.
+
+## Phase 5 — Differentiators
+Things competitors don't have, where you can pull ahead.
+
+- [ ] **Color matcher from photo.** Snap or upload a photo, tap to sample a pixel, get the closest DMC matches ranked by ΔE color distance. Pair it with your existing Convert utility so the result chains into "and here's the Anchor equivalent." Pure differentiator; StitchStash has it on iOS only.
+- [ ] **Fabric calculator.** Inputs: stitch count W×H, fabric count (14ct, 18ct, 28ct evenweave over 2, etc.), margin. Outputs: fabric dimensions in inches/cm, recommended cut size with overage. No good free web tool exists — easy SEO win on its own URL.
+- [ ] **Pattern Keeper-compatible PDF guidance.** Publish a short doc for designers: "Here's how to format your PDF so Thready's auto-scan works." Then reach out to a handful of indie designers to test. This is distribution, not a feature, but it's where Pattern Keeper got its network effect.
+
+## Phase 6 — Polish & growth
+- [ ] **iOS positioning.** Landing page copy that explicitly says "the Pattern Keeper alternative for iPhone." That's a real search query with no good free answer.
+- [ ] **Designer / shop integrations.** Etsy purchase import, designer pattern packs, kit pre-loading. Speculative, but if Phase 5's designer outreach works, this is where it leads.
+- [ ] **Stitch-along scheduler.** Set goals ("finish by March"), get progress nudges. Magic Needle has this; nobody does it well.
