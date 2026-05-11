@@ -15,3 +15,6 @@ dist/
 # typescript
 *.tsbuildinfo
 tmp/
+
+# local test PDFs (never commit)
+test-pdfs/
