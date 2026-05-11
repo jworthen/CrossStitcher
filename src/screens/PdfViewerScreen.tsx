@@ -358,6 +358,113 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
       return bestPhase
     }
 
+    // Find strong local-max peaks in a 1D profile, with parabolic sub-pixel
+    // refinement and greedy non-max suppression at minSpacing. Returns peaks
+    // sorted by position. These are intended to surface the heavy every-N
+    // grid lines that cross-stitch charts use as decade markers.
+    const findStrongPeaks = (
+      profile: Float64Array, minSpacing: number, sigmaThreshold: number,
+    ): number[] => {
+      const N = profile.length
+      let mean = 0
+      for (let i = 0; i < N; i++) mean += profile[i]
+      mean /= N
+      let variance = 0
+      for (let i = 0; i < N; i++) {
+        const d = profile[i] - mean
+        variance += d * d
+      }
+      variance /= N
+      const std = Math.sqrt(variance)
+      const threshold = mean + sigmaThreshold * std
+
+      const raw: { pos: number; mag: number }[] = []
+      for (let i = 1; i < N - 1; i++) {
+        const y1 = profile[i]
+        if (y1 <= threshold) continue
+        if (y1 < profile[i - 1] || y1 < profile[i + 1]) continue
+        const y0 = profile[i - 1], y2 = profile[i + 1]
+        const denom = y0 - 2 * y1 + y2
+        let pos = i
+        if (denom < 0) {
+          const offset = 0.5 * (y0 - y2) / denom
+          if (Math.abs(offset) < 1) pos = i + offset
+        }
+        raw.push({ pos, mag: y1 })
+      }
+
+      raw.sort((a, b) => b.mag - a.mag)
+      const kept: { pos: number; mag: number }[] = []
+      for (const r of raw) {
+        let ok = true
+        for (const k of kept) {
+          if (Math.abs(k.pos - r.pos) < minSpacing) { ok = false; break }
+        }
+        if (ok) kept.push(r)
+      }
+      kept.sort((a, b) => a.pos - b.pos)
+      return kept.map(k => k.pos)
+    }
+
+    // Linear least-squares fit of x_i = phase + k_i * period to a set of
+    // candidate peak positions, assuming the peaks lie on a regular lattice
+    // with spacing ~approxPeriod. Returns the fitted (period, phase) and the
+    // RMS residual, or null if the fit can't be meaningfully done.
+    const fitPeriodicPeaks = (
+      peaks: number[], approxPeriod: number,
+    ): { period: number; phase: number; residRms: number } | null => {
+      const n = peaks.length
+      if (n < 3) return null
+      const indices = peaks.map(p => Math.round((p - peaks[0]) / approxPeriod))
+      for (let i = 1; i < n; i++) if (indices[i] === indices[i - 1]) return null
+
+      let sumK = 0, sumX = 0, sumKK = 0, sumKX = 0
+      for (let i = 0; i < n; i++) {
+        sumK += indices[i]; sumX += peaks[i]
+        sumKK += indices[i] * indices[i]
+        sumKX += indices[i] * peaks[i]
+      }
+      const meanK = sumK / n, meanX = sumX / n
+      const denom = sumKK - n * meanK * meanK
+      if (denom === 0) return null
+      const period = (sumKX - n * meanK * meanX) / denom
+      const phase = meanX - period * meanK
+
+      let sumSq = 0
+      for (let i = 0; i < n; i++) {
+        const r = peaks[i] - (phase + indices[i] * period)
+        sumSq += r * r
+      }
+      return { period, phase, residRms: Math.sqrt(sumSq / n) }
+    }
+
+    // Anchor the grid to the chart's heavy every-K lines. Cross-stitch charts
+    // almost always emphasise every 10th line (sometimes every 5th); those
+    // lines tower over both regular grid lines and symbol-stroke noise, so
+    // fitting them gives us period and phase to far better than 1 px even
+    // when the autocorrelation peak is slightly off-center.
+    const refineFromBoldLines = (
+      profile: Float64Array, roughCellSize: number,
+    ): { cellSize: number; phase: number; residRms: number; K: number; nPeaks: number } | null => {
+      let best: { cellSize: number; phase: number; residRms: number; K: number; nPeaks: number } | null = null
+      for (const K of [10, 5]) {
+        const approxBoldPeriod = roughCellSize * K
+        if (approxBoldPeriod * 3 > profile.length) continue
+        const minSpacing = approxBoldPeriod * 0.6
+        const peaks = findStrongPeaks(profile, minSpacing, 2.0)
+        if (peaks.length < 3) continue
+        const fit = fitPeriodicPeaks(peaks, approxBoldPeriod)
+        if (!fit) continue
+        if (Math.abs(fit.period / approxBoldPeriod - 1) > 0.15) continue
+        if (fit.residRms > roughCellSize * 0.5) continue
+        const cellSize = fit.period / K
+        const phase = ((fit.phase % cellSize) + cellSize) % cellSize
+        const candidate = { cellSize, phase, residRms: fit.residRms, K, nPeaks: peaks.length }
+        if (!best || candidate.residRms < best.residRms) best = candidate
+      }
+      return best
+    }
+
     // Analyse the central 70% to skip headers, footers, and legend areas.
     const rowCropStart = (cssH * 0.15) | 0
     const colCropStart = (cssW * 0.15) | 0
@@ -371,14 +478,41 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
     const colResult = findPeriodAutocorr(colSub, minP, colMaxP)
     if (!rowResult && !colResult) { setDetectedLines(null); return }
 
-    // Cells are square. Average when both axes detected; fall back to the
-    // single working axis otherwise.
-    const cellSize =
+    // Rough cellSize from autocorr seeds the bold-line search.
+    const roughCellSize =
       rowResult && colResult ? (rowResult.period + colResult.period) / 2
       : (rowResult ?? colResult)!.period
 
-    const rowPhaseLocal = findPhase(rowSub, cellSize)
-    const colPhaseLocal = findPhase(colSub, cellSize)
+    const rowBold = refineFromBoldLines(rowSub, roughCellSize)
+    const colBold = refineFromBoldLines(colSub, roughCellSize)
+
+    // Pick the final per-axis (cellSize, phase). Prefer bold-line fit when
+    // available; cells are square, so when both axes have a bold fit we
+    // average the cellSizes. When only one axis has a fit we still use its
+    // cellSize on both axes (chart is square) but fall back to findPhase on
+    // the other axis. When neither has a fit, the original autocorr path is
+    // preserved verbatim.
+    let cellSize: number
+    let rowPhaseLocal: number
+    let colPhaseLocal: number
+    if (rowBold && colBold) {
+      cellSize = (rowBold.cellSize + colBold.cellSize) / 2
+      rowPhaseLocal = ((rowBold.phase % cellSize) + cellSize) % cellSize
+      colPhaseLocal = ((colBold.phase % cellSize) + cellSize) % cellSize
+    } else if (rowBold) {
+      cellSize = rowBold.cellSize
+      rowPhaseLocal = rowBold.phase
+      colPhaseLocal = findPhase(colSub, cellSize)
+    } else if (colBold) {
+      cellSize = colBold.cellSize
+      colPhaseLocal = colBold.phase
+      rowPhaseLocal = findPhase(rowSub, cellSize)
+    } else {
+      cellSize = roughCellSize
+      rowPhaseLocal = findPhase(rowSub, cellSize)
+      colPhaseLocal = findPhase(colSub, cellSize)
+    }
+
     const rowPhase = (rowPhaseLocal + rowCropStart) % cellSize
     const colPhase = (colPhaseLocal + colCropStart) % cellSize
 
@@ -389,9 +523,11 @@ export default function PdfViewerScreen({ patternId, patternName, onBack }: Prop
 
     console.log(
       `Grid detection: ${v.length}cols × ${h.length}rows = ${v.length * h.length} stitches`,
-      `(cellSize=${cellSize.toFixed(2)},`,
+      `(cellSize=${cellSize.toFixed(3)},`,
       `row=${rowResult ? `${rowResult.period.toFixed(2)}@${rowResult.peak.toFixed(2)}` : 'none'},`,
-      `col=${colResult ? `${colResult.period.toFixed(2)}@${colResult.peak.toFixed(2)}` : 'none'})`,
+      `col=${colResult ? `${colResult.period.toFixed(2)}@${colResult.peak.toFixed(2)}` : 'none'},`,
+      `rowBold=${rowBold ? `${rowBold.cellSize.toFixed(3)}/K${rowBold.K}/n${rowBold.nPeaks}/r${rowBold.residRms.toFixed(2)}` : 'none'},`,
+      `colBold=${colBold ? `${colBold.cellSize.toFixed(3)}/K${colBold.K}/n${colBold.nPeaks}/r${colBold.residRms.toFixed(2)}` : 'none'})`,
     )
 
     setDetectedLines({ h, v })
